@@ -14,12 +14,11 @@ const NAV = [
   { href: "/", label: "Dashboard" },
   { href: "/appointments", label: "Appointments" },
   { href: "/gate", label: "GateWatch" },
+  { href: "/planning", label: "Planning" },
+  { href: "/simulate", label: "Simulator" },
 ];
 
-const DISABLED_NAV = [
-  { label: "Planning", note: "Next slice" },
-  { label: "Simulator", note: "Next slice" },
-];
+const DISABLED_NAV: Array<{ label: string; note: string }> = [];
 
 export default async function RootLayout({
   children,

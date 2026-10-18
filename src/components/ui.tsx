@@ -53,6 +53,48 @@ export function SyntheticTag() {
   );
 }
 
+/**
+ * Prominent banner: the PortTwin simulation model is NOT calibrated against
+ * real operational data. Every simulation page must render this.
+ */
+export function UncalibratedBanner() {
+  return (
+    <div
+      role="note"
+      aria-label="Uncalibrated model notice"
+      className="rounded border border-danger/40 bg-danger/10 px-4 py-3"
+    >
+      <p className="text-sm font-semibold text-danger">
+        Uncalibrated model — illustrative outputs only
+      </p>
+      <p className="mt-1 text-sm text-ink">
+        Model uncalibrated against real operational data — outputs are
+        illustrative, not predictions. Do not treat these figures as predictions
+        of real port performance.
+      </p>
+    </div>
+  );
+}
+
+/** Provenance badge for simulation figures. Nothing is ever "measured". */
+export function ProvenanceBadge({
+  provenance,
+}: {
+  provenance: "simulated" | "assumed";
+}) {
+  const styles =
+    provenance === "simulated"
+      ? "bg-accent/10 text-accent border-accent/30"
+      : "bg-warn/10 text-warn border-warn/30";
+  return (
+    <span
+      className={`inline-block rounded border px-2 py-0.5 text-xs font-medium ${styles}`}
+    >
+      {provenance}
+    </span>
+  );
+}
+
 export function EmptyState({ title, hint }: { title: string; hint?: string }) {
   return (
     <div className="rounded border border-line bg-white px-6 py-10 text-center">
