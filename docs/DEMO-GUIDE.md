@@ -33,16 +33,18 @@ Log in as **Omar (Operator)** for the main flow. Show the role model briefly:
 "What to say (limitation #2): *This login is a demo stand-in — there are no
 passwords, and production would use your real identity system.*"
 
-Tip: log in as Yasmine for 10 seconds to show the UI hides actions the role
-cannot perform — then switch back to Omar. Enforcement is server-side; the UI
-only hides buttons.
+Tip: log in as Yasmine for 10 seconds to show the role model — the UI renders
+all action buttons, but the server rejects unauthorized actions with 403.
+Enforcement is server-side; the UI does not hide buttons. Then switch back
+to Omar.
 
 ## 2. Appointment lifecycle — TAS (3 min)
 
-1. `/appointments` — five seeded synthetic appointments in mixed statuses.
+1. `/appointments` — twenty seeded synthetic appointments in mixed statuses
+   (requested, confirmed, checked-in, completed, cancelled, no-show).
 2. Click **New appointment** — create one: plate `CAS-2026-X`, container
    `TCLU2026601`, a time ~2 h out. Show the UTC-Z validation.
-3. Open it; click **Confirm** (transition `requested → confirmed`).
+3. Open it; click **Mark confirmed** (transition `requested → confirmed`).
 4. "What to say (limitation #1): *Every record here is generated for the
    demo — plates, containers, times. There is no real port data in this
    system.*"
@@ -78,7 +80,9 @@ only hides buttons.
    handles up to 8 vessels; the fast solvers are heuristics and the screen
    labels them as such. The heavy research solver is deliberately left out of
    the interactive demo.*"
-5. (Optional) Add 9+ vessels with solver `exact` — it refuses cleanly.
+5. (Optional) Add 9+ vessels with solver `exact` — it falls back to greedy
+   with a clear label (`solverUsed: greedy`, `provenOptimal: false`) and an
+   `exactUnavailableReason`, rather than refusing.
 
 ## 5. Simulation — PortTwin (2 min, UNCALIBRATED)
 
@@ -120,4 +124,4 @@ production system.*"
 | | **Total** | **~15** |
 
 If time runs short: cut section 5 first (the compare view), then the 9-vessel
-refusal in section 4. Never cut the honesty lines — they are the demo.
+fallback in section 4. Never cut the honesty lines — they are the demo.
