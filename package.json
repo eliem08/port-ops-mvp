@@ -32,5 +32,9 @@
     "eslint-config-next": "15.5.4",
     "vitest": "^2.0.0",
     "tsx": "^4.0.0"
+  },
+  "engines": {
+    "node": ">=22",
+    "npm": ">=10"
   }
 }
