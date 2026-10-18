@@ -45,12 +45,19 @@ export function rejectWith(status: number, code: string): Response {
 }
 
 /** Fail-closed helper: configure the mock to ACCEPT a session. */
-export function allowAs(mocks: RouteMocks, session: DemoSessionLike): void {
+export function allowAs(
+  mocks: { requireApiRole: { mockResolvedValue(v: unknown): void } },
+  session: DemoSessionLike
+): void {
   mocks.requireApiRole.mockResolvedValue(session);
 }
 
 /** Fail-closed helper: configure the mock to REJECT with 401/403. */
-export function denyWith(mocks: RouteMocks, status: number, code: string): void {
+export function denyWith(
+  mocks: { requireApiRole: { mockRejectedValue(v: unknown): void } },
+  status: number,
+  code: string
+): void {
   mocks.requireApiRole.mockRejectedValue(rejectWith(status, code));
 }
 
@@ -109,12 +116,17 @@ export function getReq(path: string): NextRequest {
   return new NextRequest(`http://localhost${path}`, { method: "GET" });
 }
 
-/** Reset the three mocks and point getDb at a fresh in-memory DB. */
-export function resetHarness(mocks: RouteMocks): DatabaseSync {
+/** Reset the mocks and point getDb at a fresh in-memory DB.
+ *  `audit` is optional: files that test the REAL audit module omit it. */
+export function resetHarness(mocks: {
+  requireApiRole: { mockReset(): void };
+  getDb: { mockReset(): void; mockReturnValue(db: DatabaseSync): void };
+  audit?: { mockClear(): void };
+}): DatabaseSync {
   const db = freshTestDb();
   mocks.getDb.mockReset();
   mocks.getDb.mockReturnValue(db);
   mocks.requireApiRole.mockReset();
-  mocks.audit.mockClear();
+  mocks.audit?.mockClear();
   return db;
 }
