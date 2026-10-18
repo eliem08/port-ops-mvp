@@ -5,8 +5,8 @@
 A unified demonstration application integrating four Casablanca port-operations modules:
 - **TAS** — Truck appointment coordination (vendored from `eliem08/tas-casablanca`)
 - **GateWatch** — Gate verification (vendored from `eliem08/gatewatch`)
-- **BerthWise** — Berth planning (vendored from `eliem08/berthwise`; UI in next slice)
-- **PortTwin** — Operations simulation (vendored from `eliem08/porttwin`; UI in next slice)
+- **BerthWise** — Berth planning (vendored from `eliem08/berthwise`)
+- **PortTwin** — Operations simulation (vendored from `eliem08/porttwin`)
 
 ## Quick start
 
@@ -26,6 +26,8 @@ Open http://localhost:3000 → you'll be redirected to `/login`. Pick any demo i
 3. **GateWatch** (`/gate`) — select the appointment, submit a **simulated** scan, see the verification outcome (auto-accept / human-review / scan-failed).
 4. **Reviews** (`/gate/reviews`) — supervisor approves/rejects human-review items.
 5. Refresh the browser — all records persist (SQLite).
+6. **Planning** (`/planning`) — submit vessel/berth scenarios; proven-optimal vs heuristic labeling.
+7. **Simulator** (`/simulate`) — run scenarios, compare side-by-side (uncalibrated model — illustrative only).
 
 ## Architecture
 
