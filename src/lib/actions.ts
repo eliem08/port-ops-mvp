@@ -18,7 +18,6 @@ import {
   CreateSimulationInput,
   STATUS_TRANSITIONS,
   AppointmentStatus,
-  type AppointmentStatus as AppointmentStatusT,
   type DemoRole,
 } from "@/contracts";
 import { z } from "zod";
@@ -26,6 +25,7 @@ import {
   createSimulationRun,
   SimulationValidationError,
 } from "@/lib/simulation";
+import { scanRateLimiter } from "@/lib/rate-limit";
 
 const ROLE_RANK: Record<DemoRole, number> = {
   operations_viewer: 0,
@@ -191,6 +191,13 @@ export interface ScanResult {
 export async function submitScanAction(formData: FormData): Promise<ScanResult> {
   const session = await requireRole("operations_operator");
 
+  // Per-user throttle (60/min) — parity with POST /api/gate/scans.
+  // Checked after auth so the key is the authenticated user, not a spoofable IP.
+  const rl = scanRateLimiter.check(`user:${session.userId}`);
+  if (!rl.allowed) {
+    return { ok: false, message: "Too many scan submissions. Please try again shortly." };
+  }
+
   const confRaw = String(formData.get("confidence") ?? "").trim();
   const parsed = ScanFormSchema.safeParse({
     appointmentId: String(formData.get("appointmentId") ?? ""),
@@ -203,74 +210,28 @@ export async function submitScanAction(formData: FormData): Promise<ScanResult> 
   }
   const { appointmentId, plateRead, containerRead, confidence } = parsed.data;
 
-  const db = getDb();
-  const appt = db
-    .prepare(
-      "SELECT id, truck_plate, container_no, scheduled_at, status FROM appointments WHERE id = ?"
-    )
-    .get(appointmentId) as
-    | {
-        id: string;
-        truck_plate: string;
-        container_no: string | null;
-        scheduled_at: string;
-        status: string;
-      }
-    | undefined;
-  if (!appt) return { ok: false, message: "Appointment not found." };
-
-  // Use the vendored GateWatch verification logic (pure function).
-  const { verifyGateEventAgainstAppointment } = await import(
-    "@/vendored/gatewatch/verify"
-  );
-  const scannedAt = new Date();
-  const slotStart = new Date(new Date(appt.scheduled_at).getTime() - 60 * 60_000);
-  const slotEnd = new Date(new Date(appt.scheduled_at).getTime() + 60 * 60_000);
-  const conf = confidence ?? Number.NaN; // missing/NaN confidence NEVER auto-accepts
-
-  const decision = verifyGateEventAgainstAppointment(
-    {
-      plate: plateRead ?? "",
-      containerNumber: containerRead ?? "",
-      scannedAtUtc: scannedAt.toISOString(),
-      gate: "DEMO-GATE",
-      containerConfidence: conf,
-      plateConfidence: conf,
-    },
-    {
-      appointmentId: appt.id,
-      status: appt.status as AppointmentStatusT,
-      containerNumber: appt.container_no ?? "",
-      plate: appt.truck_plate,
-      slotStartUtc: slotStart.toISOString(),
-      slotEndUtc: slotEnd.toISOString(),
-      gate: "DEMO-GATE",
+  // Domain logic lives in ./demo-workflow — the tested path IS the shipped
+  // path (the integration test drives recordScanVerification directly).
+  const { recordScanVerification } = await import("./demo-workflow");
+  let recorded;
+  try {
+    recorded = await recordScanVerification(getDb(), session.userId, {
+      appointmentId,
+      plateRead: plateRead ?? null,
+      containerRead: containerRead ?? null,
+      confidence: confidence ?? null,
+    });
+  } catch (e) {
+    // Only the known "not found" case becomes a form message; anything
+    // else (e.g. a mid-transaction failure) must propagate so a partial
+    // write can never be reported as success.
+    if (e instanceof Error && e.message === "appointment not found") {
+      return { ok: false, message: "Appointment not found." };
     }
-  );
+    throw e;
+  }
 
-  const outcome =
-    decision.decision === "authorized"
-      ? "auto-accept"
-      : decision.decision === "manual-review"
-        ? "human-review"
-        : "scan-failed";
-  const reason = humanReason(decision.reasonCodes);
-
-  const eventId = randomUUID();
-  db.prepare(
-    `INSERT INTO gate_verification_events
-     (id, appointment_id, simulated, plate_read, container_read, confidence, outcome, reason, verified_by)
-     VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?)`
-  ).run(
-    eventId,
-    appointmentId,
-    plateRead ?? null,
-    containerRead ?? null,
-    Number.isFinite(conf) ? conf : null,
-    outcome,
-    reason,
-    session.userId
-  );
+  const { eventId, outcome, reasonCodes, note } = recorded;
   audit(session.userId, "scan.submitted", "gate_verification_event", eventId, {
     synthetic: true,
     simulated: true,
@@ -279,17 +240,19 @@ export async function submitScanAction(formData: FormData): Promise<ScanResult> 
     outcome,
   });
 
-  if (outcome === "human-review") {
-    const reviewId = randomUUID();
-    db.prepare(
-      `INSERT INTO review_items (id, event_id, status) VALUES (?, ?, 'pending')`
-    ).run(reviewId, eventId);
-  }
-
   revalidatePath("/gate");
   revalidatePath("/gate/reviews");
   revalidatePath("/");
-  return { ok: true, message: "Scan recorded (simulated).", outcome, reason, eventId };
+  return {
+    ok: true,
+    message: "Scan recorded (simulated).",
+    outcome,
+    // The auto-accept → human-review downgrade (appointment cannot legally
+    // check in) has no vendored reason code — surface the domain note so the
+    // operator sees WHY the scan went to a human.
+    reason: note ? `${humanReason(reasonCodes)} ${note}` : humanReason(reasonCodes),
+    eventId,
+  };
 }
 
 // ── Review queue ─────────────────────────────────────────────────────────
@@ -301,24 +264,42 @@ export async function decideReviewAction(
 ): Promise<ActionResult> {
   // Supervisor only — the UI also hides these buttons for other roles.
   const session = await requireRole("supervisor");
-  const db = getDb();
 
-  const row = db
-    .prepare("SELECT id, event_id, status FROM review_items WHERE id = ?")
-    .get(reviewId) as { id: string; event_id: string; status: string } | undefined;
-  if (!row) return { ok: false, message: "Review item not found." };
-  if (row.status !== "pending") {
-    return { ok: false, message: `Review item already ${row.status}.` };
+  // Domain logic lives in ./demo-workflow — the tested path IS the shipped path.
+  const { decideReviewItem } = await import("./demo-workflow");
+  let decided;
+  try {
+    decided = decideReviewItem(getDb(), reviewId, session.userId, decision, note);
+  } catch (e) {
+    if (e instanceof Error) {
+      if (e.message === "review item not found") {
+        return { ok: false, message: "Review item not found." };
+      }
+      if (e.message.startsWith("review item already")) {
+        return {
+          ok: false,
+          message: `Review item already ${e.message.replace("review item already ", "")}.`,
+        };
+      }
+      // Server-action args cross the network: a hostile client can send any
+      // "decision" value. The domain validates at runtime; never write the
+      // raw value into the database.
+      if (e.message === "invalid review decision input") {
+        return { ok: false, message: "Invalid decision." };
+      }
+      if (/separation of duties/i.test(e.message)) {
+        return {
+          ok: false,
+          message: "Separation of duties: you cannot decide the review for a scan you submitted.",
+        };
+      }
+    }
+    throw e;
   }
 
-  db.prepare(
-    `UPDATE review_items
-     SET status = ?, decided_by = ?, decided_at = datetime('now'), note = ?
-     WHERE id = ?`
-  ).run(decision, session.userId, note.trim().slice(0, 500) || null, reviewId);
-  audit(session.userId, "review.decided", "review_item", reviewId, {
+  audit(session.userId, "review.decided", "review_item", decided.reviewId, {
     decision,
-    event_id: row.event_id,
+    event_id: decided.eventId,
   });
 
   revalidatePath("/gate/reviews");
@@ -374,6 +355,87 @@ export async function createSimulationRunAction(
     audit(session.userId, "simulation.run_created", "simulation", record.id, {
       scenarioId: record.scenarioId,
       synthetic: true,
+    });
+  } catch (e) {
+    if (e instanceof SimulationValidationError) {
+      return { ok: false, message: e.publicError.message };
+    }
+    return { ok: false, message: "Simulation failed unexpectedly." };
+  }
+
+  revalidatePath("/simulate");
+  redirect(`/simulate/runs/${recordId}`);
+}
+
+// ── Appointment→simulation bridge (explicit, operator-editable) ──────────
+// This is NOT an automatic feed. The operator proposes a simulation from
+// appointment volume with visible, editable assumptions; the assumptions
+// are stored verbatim on the run and shown on the run detail page.
+
+export async function createSimulationRunFromAppointmentsAction(
+  prev: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  const session = await requireRole("planner");
+
+  const num = (v: FormDataEntryValue | null): number | undefined => {
+    const s = String(v ?? "").trim();
+    return s === "" ? undefined : Number(s);
+  };
+
+  // Operator-edited assumption lines (assumptionCount mirrors the bridge
+  // form; each line is stored verbatim and displayed on the run detail).
+  const assumptionCount = num(formData.get("assumptionCount")) ?? 0;
+  const assumptions: string[] = [];
+  for (let i = 0; i < Math.min(assumptionCount, 20); i++) {
+    const line = String(formData.get(`assumption_${i}`) ?? "").trim().slice(0, 500);
+    if (line) assumptions.push(line);
+  }
+  const bridgeDate = String(formData.get("bridgeDate") ?? "").trim();
+
+  const raw = {
+    scenarioName: String(formData.get("scenarioName") ?? "").trim(),
+    scenarioId: String(formData.get("scenarioId") ?? "").trim(),
+    seed: num(formData.get("seed")),
+    replications: num(formData.get("replications")),
+    paramOverrides: {
+      horizonHours: num(formData.get("horizonHours")),
+      trucksPerDay: num(formData.get("trucksPerDay")),
+    },
+  };
+
+  const parsed = CreateSimulationInput.safeParse(raw);
+  if (!parsed.success) {
+    const fieldErrors: Record<string, string> = {};
+    for (const issue of parsed.error.issues) {
+      const key = String(issue.path[issue.path.length - 1] ?? "scenarioId");
+      fieldErrors[key] = issue.message;
+    }
+    return {
+      ok: false,
+      message: "Validation failed — fix the highlighted fields.",
+      fieldErrors,
+    };
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(bridgeDate)) {
+    return { ok: false, message: "Invalid bridge date." };
+  }
+
+  const db = getDb();
+  let recordId: string;
+  try {
+    const { record } = createSimulationRun(
+      db,
+      session.userId,
+      parsed.data,
+      assumptions
+    );
+    recordId = record.id;
+    audit(session.userId, "simulation.run_created", "simulation", record.id, {
+      scenarioId: record.scenarioId,
+      synthetic: true,
+      bridge: "appointments",
+      bridgeDate,
     });
   } catch (e) {
     if (e instanceof SimulationValidationError) {

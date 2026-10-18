@@ -11,7 +11,7 @@
 // nothing is ever labeled "measured".
 
 import type { DatabaseSync } from "node:sqlite";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import {
   PRESETS,
   presetParams,
@@ -454,11 +454,18 @@ export function compareSimulationRuns(
  *
  * SimError from the engine is mapped to SimulationValidationError (400)
  * with the vendored public message.
+ *
+ * extraAssumptions (optional) are operator-supplied, explicit assumption
+ * strings — e.g. from the appointment→simulation bridge — stored verbatim
+ * AHEAD of the engine-derived assumptions. They are shown on the run detail
+ * page exactly as supplied: this is the "explicit bridge" mechanism, not a
+ * hidden feed.
  */
 export function createSimulationRun(
   db: DatabaseSync,
   userId: string,
-  input: CreateSimulationInput
+  input: CreateSimulationInput,
+  extraAssumptions: string[] = []
 ): { record: SimulationRunDTO; created: boolean } {
   const preset = PRESETS.find((p) => p.id === input.scenarioId);
   if (!preset) {
@@ -481,7 +488,18 @@ export function createSimulationRun(
     if (err instanceof SimulationValidationError) throw err;
     throw toSimulationValidationError(err);
   }
-  const hash = inputHash(validated);
+  // Idempotency hash: the engine input hash plus the bridge assumptions.
+  // Same logical input AND same assumptions → identical hash (replay-safe);
+  // identical input with DIFFERENT operator assumptions → different record,
+  // so an edited assumption can never be silently dropped by replay.
+  let hash = inputHash(validated);
+  if (extraAssumptions.length > 0) {
+    const bridgeHash = createHash("sha256")
+      .update(JSON.stringify(extraAssumptions))
+      .digest("hex")
+      .slice(0, 16);
+    hash = `${hash}:bridge:${bridgeHash}`;
+  }
 
   // Fast-path idempotent replay: this exact input already ran.
   const existing = getSimulationRow(db, hash);
@@ -506,7 +524,10 @@ export function createSimulationRun(
     appliedParams: pickAppliedParams(input.scenarioId, input.paramOverrides ?? {}),
   };
   const resultJson = JSON.stringify(persisted);
-  const assumptionsJson = JSON.stringify(buildAssumptions(preset, output));
+  const assumptionsJson = JSON.stringify([
+    ...extraAssumptions,
+    ...buildAssumptions(preset, output),
+  ]);
   const id = randomUUID();
 
   const { row, created } = withTransaction(
