@@ -344,21 +344,23 @@ export function toSimulationRunDTO(row: SimulationRunRow): SimulationRunDTO {
   const output = persisted.output ?? (persisted as unknown as SimulationOutput);
   const replications = output.confidenceIntervals?.[0]?.replications ?? 0;
   // Seed KPIs use snake_case; engine KPIs use camelCase. Normalize for the DTO.
-  const kpis = output.kpis as unknown as Record<string, any>;
+  // Loose shape: values are numbers when present, but the key set varies by source.
+  const kpis = output.kpis as unknown as Record<string, unknown>;
+  const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
   const utilPct = kpis.utilizationPct as { gate?: number; yard?: number; berth?: number } | undefined;
   const normalizedKpis = {
-    throughputTrucksPerHour: kpis.throughputTrucksPerHour ?? kpis.gate_throughput_per_h ?? 0,
-    throughputTeuPerHour: kpis.throughputTeuPerHour ?? 0,
-    meanWaitMin: kpis.meanWaitMin ?? kpis.avg_truck_turnaround_min ?? 0,
-    p95WaitMin: kpis.p95WaitMin ?? 0,
-    maxQueueMean: kpis.maxQueueMean ?? kpis.max_gate_queue ?? 0,
+    throughputTrucksPerHour: num(kpis.throughputTrucksPerHour ?? kpis.gate_throughput_per_h),
+    throughputTeuPerHour: num(kpis.throughputTeuPerHour),
+    meanWaitMin: num(kpis.meanWaitMin ?? kpis.avg_truck_turnaround_min),
+    p95WaitMin: num(kpis.p95WaitMin),
+    maxQueueMean: num(kpis.maxQueueMean ?? kpis.max_gate_queue),
     utilizationPct: {
-      gate: utilPct?.gate ?? 0,
-      yard: utilPct?.yard ?? 0,
-      berth: utilPct?.berth ?? kpis.berth_utilization_pct ?? 0,
+      gate: num(utilPct?.gate),
+      yard: num(utilPct?.yard),
+      berth: num(utilPct?.berth ?? kpis.berth_utilization_pct),
     },
-    co2Tonnes: kpis.co2Tonnes ?? 0,
-    completedTrucksMean: kpis.completedTrucksMean ?? 0,
+    co2Tonnes: num(kpis.co2Tonnes),
+    completedTrucksMean: num(kpis.completedTrucksMean),
   };
   return {
     id: row.id,

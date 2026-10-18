@@ -197,8 +197,8 @@ describe("createSimulationRun", () => {
       buildSimulationInput("tas", 7, 10, {}),
       { idempotencyKey: "det-b" }
     );
-    const { completedAtUtc: _ca, ...restA } = a;
-    const { completedAtUtc: _cb, ...restB } = b;
+    const { completedAtUtc: _ca, ...restA } = a; // eslint-disable-line @typescript-eslint/no-unused-vars
+    const { completedAtUtc: _cb, ...restB } = b; // eslint-disable-line @typescript-eslint/no-unused-vars
     expect(restA).toEqual(restB);
     expect(inputHash(buildSimulationInput("tas", 7, 10, {}))).toBe(a.inputHash);
   });

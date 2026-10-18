@@ -1,6 +1,6 @@
 // GET /api/gate/reviews — pending human-review items with their event details.
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { requireApiRole } from "@/lib/auth";
 import { getDb } from "@/lib/db/client";
 import { handleRouteError, ok } from "@/lib/route-helpers";

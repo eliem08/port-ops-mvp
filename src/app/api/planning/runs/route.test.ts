@@ -13,7 +13,7 @@ const cookieState = vi.hoisted(() => ({
 }));
 vi.mock("next/headers", () => ({
   cookies: async () => ({
-    get: (_name: string) =>
+    get: () =>
       cookieState.token ? { value: cookieState.token } : undefined,
   }),
 }));

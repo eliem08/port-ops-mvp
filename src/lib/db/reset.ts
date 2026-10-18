@@ -1,6 +1,5 @@
 // Reset the demo database. DEMO ONLY — refuses to run in production.
 // Usage: npm run db:reset
-import { getDb } from "./client";
 import fs from "node:fs";
 import path from "node:path";
 

@@ -1,7 +1,7 @@
 // GET /api/dashboard — real metrics straight from the database.
 // NO hardcoded numbers: every figure is a live COUNT(*) / GROUP BY query.
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { requireApiRole } from "@/lib/auth";
 import { getDb } from "@/lib/db/client";
 import { handleRouteError, ok } from "@/lib/route-helpers";

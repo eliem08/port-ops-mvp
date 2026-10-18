@@ -94,7 +94,7 @@ export async function createAppointmentAction(
       session.userId,
       parsed.data.idempotencyKey ?? randomUUID()
     );
-  } catch (e) {
+  } catch {
     return { ok: false, message: "Could not create appointment (possible duplicate submission)." };
   }
 
