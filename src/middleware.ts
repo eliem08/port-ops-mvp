@@ -1,14 +1,15 @@
 // Auth guard for the demo UI.
-// Middleware cannot import node:sqlite, so the minimal JWT verification
-// logic is duplicated here from src/lib/auth.ts (same secret, same cookie).
+// The JWT secret comes from src/lib/auth-secret.ts — the single source of
+// truth shared with src/lib/auth.ts. auth-secret has no Node-only imports,
+// so it is safe to use in the edge runtime. (Previously the fallback secret
+// string was duplicated here; drift would have split-brained verification.)
 
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
+import { getSecretBytes } from "./lib/auth-secret";
 
 const COOKIE_NAME = "portops_demo_session";
-const secret = new TextEncoder().encode(
-  process.env.DEMO_AUTH_SECRET ?? "dev-only-change-me-in-production"
-);
+const secret = getSecretBytes();
 
 const PUBLIC_PREFIXES = ["/login", "/api/auth", "/api/health"];
 

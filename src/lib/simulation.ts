@@ -339,20 +339,39 @@ function buildAssumptions(preset: Preset, output: SimulationOutput): string[] {
 
 export function toSimulationRunDTO(row: SimulationRunRow): SimulationRunDTO {
   const persisted = parsePersisted(row);
-  const output = persisted.output;
-  const replications = output.confidenceIntervals[0]?.replications ?? 0;
+  // Seed data uses a simplified format without the `output` wrapper.
+  // Handle both: engine output (with `output`) and seed format (flat).
+  const output = persisted.output ?? (persisted as unknown as SimulationOutput);
+  const replications = output.confidenceIntervals?.[0]?.replications ?? 0;
+  // Seed KPIs use snake_case; engine KPIs use camelCase. Normalize for the DTO.
+  const kpis = output.kpis as unknown as Record<string, any>;
+  const utilPct = kpis.utilizationPct as { gate?: number; yard?: number; berth?: number } | undefined;
+  const normalizedKpis = {
+    throughputTrucksPerHour: kpis.throughputTrucksPerHour ?? kpis.gate_throughput_per_h ?? 0,
+    throughputTeuPerHour: kpis.throughputTeuPerHour ?? 0,
+    meanWaitMin: kpis.meanWaitMin ?? kpis.avg_truck_turnaround_min ?? 0,
+    p95WaitMin: kpis.p95WaitMin ?? 0,
+    maxQueueMean: kpis.maxQueueMean ?? kpis.max_gate_queue ?? 0,
+    utilizationPct: {
+      gate: utilPct?.gate ?? 0,
+      yard: utilPct?.yard ?? 0,
+      berth: utilPct?.berth ?? kpis.berth_utilization_pct ?? 0,
+    },
+    co2Tonnes: kpis.co2Tonnes ?? 0,
+    completedTrucksMean: kpis.completedTrucksMean ?? 0,
+  };
   return {
     id: row.id,
     scenarioName: row.scenario_name,
-    scenarioId: output.scenarioId,
+    scenarioId: output.scenarioId ?? "seed",
     seed: row.seed,
     replications,
     inputHash: row.input_hash,
     status: "completed",
-    kpis: kpiFigures(output),
-    parameters: parameterFigures(persisted.appliedParams),
+    kpis: kpiFigures({ ...output, kpis: normalizedKpis } as SimulationOutput),
+    parameters: parameterFigures(persisted.appliedParams ?? {}),
     assumptions: JSON.parse(row.assumptions) as string[],
-    warnings: output.warnings,
+    warnings: output.warnings ?? [],
     calibrated: false,
     createdBy: row.created_by,
     createdAt: row.created_at,

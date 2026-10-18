@@ -1,5 +1,9 @@
 // Demo authentication — EXPLICITLY NOT PRODUCTION AUTH.
 // - Signed JWT in an httpOnly cookie. No passwords (demo identities only).
+// - 8h absolute session expiry (JWT exp + cookie maxAge, kept in sync).
+// - The signing secret comes from src/lib/auth-secret.ts (single source of
+//   truth, shared with the edge middleware). In production the app REFUSES
+//   TO BOOT without DEMO_AUTH_SECRET (see src/instrumentation.ts).
 // - Every consequential API route MUST call requireRole() server-side.
 // - The UI displays a permanent DEMO banner; this must never be mistaken
 //   for a real identity provider.
@@ -15,28 +19,25 @@
 //   victim credential to fixate.
 // - If this ever grows real credentials: add an anti-CSRF token (double-
 //   submit or synchronizer) on all mutations, rotate the signing secret,
-//   and shorten the 12h session lifetime.
+//   and shorten the 8h session lifetime.
+//
+// WHAT'S STILL MISSING FOR PRODUCTION (see docs/LIMITATIONS.md #2):
+// password hashing, MFA, account recovery, session revocation list,
+// brute-force lockout, per-user secrets, audit shipping to a SIEM.
 
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { DemoRole } from "@/contracts";
 import { getDb } from "./db/client";
+import { getSecretBytes } from "./auth-secret";
 
 const COOKIE_NAME = "portops_demo_session";
 
-const rawSecret = process.env.DEMO_AUTH_SECRET;
-if (!rawSecret && process.env.NODE_ENV === "production") {
-  // Loud fail-open warning: anyone with the repo default could forge
-  // sessions. Demo only — never ship without a real secret.
-  console.error(
-    "[auth] DEMO_AUTH_SECRET is not set in production — sessions are signed " +
-      "with a publicly known fallback. This demo must not be exposed publicly."
-  );
-}
-const secret = new TextEncoder().encode(
-  rawSecret ?? "dev-only-change-me-in-production"
-);
+/** 8h absolute session lifetime — JWT exp and cookie maxAge MUST match. */
+const SESSION_TTL_SECONDS = 8 * 3600;
+
+const secret = getSecretBytes();
 
 export interface DemoSession {
   userId: string;
@@ -63,7 +64,7 @@ export async function createSession(userId: string): Promise<string> {
   return await new SignJWT({ userId: row.id, label: row.label, role })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime("12h")
+    .setExpirationTime(`${SESSION_TTL_SECONDS}s`)
     .sign(secret);
 }
 
@@ -122,6 +123,6 @@ export function setSessionCookie(res: NextResponse, token: string): void {
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: 12 * 3600,
+    maxAge: SESSION_TTL_SECONDS,
   });
 }

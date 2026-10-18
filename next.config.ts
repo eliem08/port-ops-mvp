@@ -33,6 +33,8 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   // better-sqlite3 is a native module — keep it server-side only
   serverExternalPackages: ["better-sqlite3"],
+  // NOTE: src/instrumentation.ts (startup hook: production secret check +
+  // demo-auth banner) is auto-detected by Next.js 15 — no config flag needed.
   async headers() {
     return [
       {
