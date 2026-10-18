@@ -50,10 +50,17 @@ Business logic is vendored verbatim from the four source repos — see [VENDORED
 ## Limitations (not concealed)
 
 1. No real port operational data — all records synthetic.
-2. Demo auth only — no production identity provider.
-3. TAS concurrent idempotency is now atomic via SQLite (fixed in this platform).
-4. BerthWise solvers vendored but UI not yet integrated (next slice).
-5. PortTwin engine vendored but UI not yet integrated (next slice); model uncalibrated.
+2. Demo auth only — no production identity provider (8 h session expiry,
+   in-memory rate limits: login 10/min/IP, scan submissions 60/min/user).
+3. TAS concurrent idempotency is atomic via SQLite (fixed in this platform).
+4. BerthWise exact solver is capped at 8 vessels (`EXACT_MAX_VESSELS`);
+   larger instances fall back to labeled greedy; heuristic results are
+   explicitly non-optimal (`provenOptimal` gating). ALNS is vendored but
+   deliberately excluded from interactive paths. Planning UI and API
+   (`/planning`, `/api/planning/runs`) are live in this slice.
+5. PortTwin model is uncalibrated — outputs are illustrative, never measured
+   facts; simulation UI and API (`/simulate`, `/api/simulate/*`) are live in
+   this slice.
 6. Dependency audits — see source repos (upstream advisories tracked via Dependabot).
 
 ## Commands

@@ -21,7 +21,7 @@ would require.
 | Fail-closed verification | Vendored `review.ts` + regression tests | NaN, missing, or out-of-range confidence → NEVER auto-accepts (locked by `review.regression.test.ts`, 8 tests). |
 | Audit trail | `src/lib/audit.ts` → `audit_events` table | Append-only by convention and code review — no UPDATE or DELETE queries exist anywhere. Login/logout, creates, transitions, scans, review decisions, plan and simulation runs are all logged with actor + timestamp. Detail fields are scalar-only (no PII, request bodies, or secrets). |
 | Error handling | `handleRouteError()` | Sanitized `{ error: { code, message } }` envelope; never stack traces or internals. Unexpected errors are logged server-side. |
-| Session cookie | `setSessionCookie()` | `httpOnly`, `SameSite=Lax`, `Secure` in production, 12 h expiry, path `/`. |
+| Session cookie | `setSessionCookie()` | `httpOnly`, `SameSite=Lax`, `Secure` in production, 8 h expiry (`SESSION_TTL_SECONDS` in `src/lib/auth.ts`; JWT `exp` and cookie `maxAge` share the constant), path `/`. |
 
 ### Explicitly NOT protected (demo scope)
 
@@ -37,8 +37,13 @@ would require.
 - **No CSRF tokens beyond SameSite.** `SameSite=Lax` cookies are the only CSRF
   mitigation; there are no per-request anti-CSRF tokens (Lax blocks cross-site
   POST, but strict or token-based protection would be needed for production).
-- **No rate limiting** on platform routes (the vendored TAS server helpers
-  include rate-limit code, but it is not wired into this platform).
+- **Rate limiting** (demo-grade, in-memory): the login route is throttled at
+  10 attempts/min per IP (`loginRateLimiter`, keyed by `clientIp()`); scan
+  submission is throttled at 60/min per authenticated user
+  (`scanRateLimiter`, keyed `user:<userId>`). Token-bucket
+  (`src/lib/rate-limit.ts`); single-process memory, resets on restart, no
+  clustering — not a production solution. Over-limit calls get
+  `429 { error: { code: "rate_limited" } }` with a `Retry-After` header.
 - **No dependency audit gate** in this repo (upstream repos track advisories
   via Dependabot; see INTEGRATION-MATRIX for the four source repos).
 - **Server-action path note:** `src/lib/actions.ts` uses a dynamic
@@ -50,7 +55,8 @@ would require.
 ## 2. Auth design
 
 - **Token:** HS256 JWT signed with `DEMO_AUTH_SECRET`, payload
-  `{ userId, label, role }`, 12 h expiry (`createSession`).
+  `{ userId, label, role }`, 8 h expiry (`SESSION_TTL_SECONDS`,
+  `createSession`).
 - **Transport:** `portops_demo_session` httpOnly cookie.
 - **Lookup:** sessions are stateless; the role is asserted at login from the
   `demo_users` table and embedded in the JWT (`getSession()` re-validates the
@@ -58,10 +64,14 @@ would require.
 - **Roles (5):** `operations_viewer` (read-only), `operations_operator`
   (appointments + scans), `planner` (runs planning/simulations), `supervisor`
   (review decisions + everything below), `administrator` (highest rank).
-- **Middleware duplication (known):** the edge middleware cannot import
-  `node:sqlite`, so minimal JWT verification is duplicated in
-  `src/middleware.ts` with the same secret and cookie name. Keep the two in
-  sync — drift here silently breaks the gate.
+- **Middleware verification (shared secret, separate call site):** the edge
+  middleware cannot import `node:sqlite`, so JWT verification runs there
+  independently via `jwtVerify`, but it now reads the same secret through the
+  single source of truth (`src/lib/auth-secret.ts` — the duplicated fallback
+  string was removed on 2026-10-18). Cookie name and secret no longer drift;
+  if the verification *logic* ever changes in one place, change it in both
+  (`src/lib/auth.ts` and `src/middleware.ts`) — drift here silently breaks
+  the gate.
 
 ## 3. The six documented limitations (accurate status)
 

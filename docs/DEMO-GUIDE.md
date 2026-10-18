@@ -35,8 +35,9 @@ passwords, and production would use your real identity system.*"
 
 Tip: log in as Yasmine for 10 seconds to show the role model — the UI renders
 all action buttons, but the server rejects unauthorized actions with 403.
-Enforcement is server-side; the UI does not hide buttons. Then switch back
-to Omar.
+Enforcement is server-side; the UI does not hide buttons (the one exception:
+`/gate/reviews` hides the decision buttons from non-supervisor roles). Then
+switch back to Omar.
 
 ## 2. Appointment lifecycle — TAS (3 min)
 
