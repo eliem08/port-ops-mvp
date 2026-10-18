@@ -36,9 +36,9 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        // Applies to pages and API routes (not _next/static assets, which
-        // don't need them and are immutable-hashed anyway).
-        source: "/((?!_next/static|_next/image).*)",
+        // Pages and API routes. (Also matches _next/static immutable assets;
+        // harmless there.)
+        source: "/:path*",
         headers: securityHeaders,
       },
     ];
