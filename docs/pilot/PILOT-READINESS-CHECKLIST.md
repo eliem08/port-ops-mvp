@@ -4,6 +4,12 @@
 local, authentification de démonstration) à un pilote supervisé sur données
 réelles partielles.
 
+Documents associés : `docs/pilot/PILOT-REQUIREMENTS.md` (exigences
+détaillées : données anonymisées, hébergement, IdP, secrets, sauvegardes,
+supervision, revue de sécurité, responsabilité humaine, critères
+d'acceptation, repli) et `docs/pilot/SQLITE-ASSESSMENT.md` (pourquoi SQLite
+suffit pour la démo, ses limites, chemin de migration PostgreSQL).
+
 **Légende des statuts :**
 - ✅ **Prêt** — acquis, vérifié, rien à faire.
 - 🔧 **À travailler** — à la charge de l'équipe projet (ilyass / prestataire).
@@ -28,7 +34,7 @@ réelles partielles.
 | # | Élément | Statut | Notes |
 |---|---|---|---|
 | I1 | Hébergement du pilote | 🔧 À travailler | Le prototype tourne en local (SQLite). Cible : serveur défini avec l'institution (souveraineté des données à trancher, cf. questions ouvertes). |
-| I2 | Base de données multi-utilisateur | 🔧 À travailler | Migration SQLite → PostgreSQL (ou équivalent) avec sauvegardes et restauration testée. |
+| I2 | Base de données multi-utilisateur | 🔧 À travailler | Migration SQLite → PostgreSQL (ou équivalent) avec sauvegardes et restauration testée. Détail : `docs/pilot/SQLITE-ASSESSMENT.md`. |
 | I3 | Fournisseur d'identité (SSO) | 🔧 À travailler | Remplacer l'authentification de démonstration par OIDC/SAML ; conserver le modèle à cinq rôles. |
 | I4 | Gestion des secrets | 🔧 À travailler | Coffre-fort (vault) avec rotation ; aucun secret dans le code ni dans les variables d'environnement en clair. |
 | I5 | Sauvegardes et plan de reprise | 🔧 À travailler | RPO/RTO à définir avec l'institution ; exercice de restauration avant le pilote. |
@@ -69,7 +75,7 @@ réelles partielles.
 
 | # | Élément | Statut | Notes |
 |---|---|---|---|
-| T1 | Intégration des quatre modules | ✅ Prêt | 245 tests au vert ; 12 critères d'acceptation vérifiés. |
+| T1 | Intégration des quatre modules | ✅ Prêt | 259 tests au vert ; pont explicite rendez-vous → simulation testé de bout en bout ; parité actions/UI ↔ API REST vérifiée (cf. `docs/INTEGRATION-MATRIX.md`). |
 | T2 | Calibration du simulateur | 🚫 Bloqué (tiers) | Impossible sans D1/D3. Le simulateur reste illustratif jusqu'à calibration sur données observées. |
 | T3 | Validation des solveurs sur tailles réelles | 🚫 Bloqué (tiers) | Benchmark des solveurs sur instances réelles (nombre de navires/quais) avant tout usage décisionnel. |
 | T4 | Documentation technique | ✅ Prêt | Architecture, sécurité, limites, matrice d'intégration, récupération — voir `docs/`. |
@@ -78,11 +84,13 @@ réelles partielles.
 
 ## Lecture rapide
 
-- **Prêts (9)** : tout ce qui dépend uniquement du prototype existant.
-- **À travailler (14)** : chantiers d'ingénierie et d'organisation, réalisables
+- **Prêts (6)** : tout ce qui dépend uniquement du prototype existant.
+- **À travailler (15)** : chantiers d'ingénierie et d'organisation, réalisables
   une fois le cadrage posé.
-- **Bloqués par un tiers (12)** : tous nécessitent des décisions ou des
+- **Bloqués par un tiers (11)** : tous nécessitent des décisions ou des
   données de l'institution. **Aucun pilote ne démarre tant que D1, J1 et O1
   ne sont pas levés.**
 
-*Dernière mise à jour : 2026-10-18 — branche `feat/mvp-slice-1`.*
+*Dernière mise à jour : 2026-10-19 — branche `harden/institutional-demo`.
+Recomptage vérifié : 6 ✅ / 15 🔧 / 11 🚫 sur 32 éléments (les totaux
+précédents 9/14/12 étaient erronés).*

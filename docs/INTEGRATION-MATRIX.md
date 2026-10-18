@@ -80,7 +80,97 @@ PortTwin from `src/sim/`. Zod `^4.6.7` in both sides, no import adjustments need
 | `errors.ts` (`toPublicError`) | Yes | Structured errors → sanitized public envelope |
 | `rng.ts`, `types.ts`, `disruptions.ts`, `stats.ts`, `engine.ts`, `costs.ts`, `montecarlo.ts`, `validate.ts`, `datasets.ts`, `audit.ts` | Indirectly (internal engine closure) | Not imported directly; note the engine's in-memory audit is **not** used — the platform persists to SQLite instead |
 
-## Test coverage (`npm run test` — 245 tests, 17 files, all green — verified 2026-10-18)
+## UI pages — executable capabilities (2026-10-19)
+
+Every page is a real, working surface. Server components read the database
+directly; client forms either call a UI server action (`src/lib/actions.ts`)
+or POST to the REST API. Nothing is mocked.
+
+| Page | Module | What it does | Mutation path |
+|---|---|---|---|
+| `/` (dashboard) | all four | Live counts: appointments by status, verification outcomes, pending reviews, plans by solver, simulations by scenario, recent audit tail | read-only (`src/lib/dashboard.ts`) |
+| `/login` | auth | Demo login (five roles) | `POST /api/auth/login` |
+| `/appointments` | TAS | List appointments, filter by status | read-only (`src/lib/appointments.ts`) |
+| `/appointments/new` | TAS | Create an appointment (plate, container, driver, UTC-Z slot) | server action `createAppointmentAction` |
+| `/appointments/[id]` | TAS | Appointment detail + legal status-transition buttons | server action `transitionAppointmentAction` |
+| `/gate` | GateWatch | Simulated scan form (appointment ref, plate/container reads, confidence) | server action `submitScanAction` → `recordScanVerification` (`src/lib/demo-workflow.ts`) |
+| `/gate/reviews` | GateWatch | Human-review queue; supervisor approve/reject with note | server action `decideReviewAction` → `decideReviewItem` (`src/lib/demo-workflow.ts`) |
+| `/planning` | BerthWise | New-plan form (synthetic preset + solver) + run list | `POST /api/planning/runs` (REST) |
+| `/planning/runs/[id]` | BerthWise | Plan detail: assignments, KPIs, optimality badge, assumptions | read-only |
+| `/simulate` | PortTwin | New-run form + **explicit bridge card** (appointment volume → overrides, all assumptions editable) + run list + compare picker | server actions `createSimulationRunAction`, `createSimulationRunFromAppointmentsAction` |
+| `/simulate/runs/[id]` | PortTwin | Run detail: KPIs, applied params, assumptions (bridge assumptions shown first) | read-only |
+| `/simulate/compare` | PortTwin | Baseline vs proposed KPI deltas (two run ids) | read-only (`compareSimulationRuns`) |
+
+The **explicit bridge** (`/simulate` card + `src/lib/demo-workflow.ts` +
+`src/app/simulate/bridge-form.tsx`) is the ONLY cross-module workflow that
+connects TAS data to another module. It is parametric, not structural:
+appointment volume on one date proposes `trucksPerDay`/`horizonHours`
+overrides; every assumption is shown and editable before the run, stored
+verbatim on the run, and folded into the idempotency hash. Full chain is
+covered by `src/lib/demo-workflow.test.ts`.
+
+## API route → domain lib → vendored module map (2026-10-19)
+
+| Route | Domain lib | Vendored module reached |
+|---|---|---|
+| `POST/GET /api/appointments` | `src/lib/appointments.ts` | TAS: status enum + UTC discipline (contract reuse only) |
+| `GET /api/appointments/[id]` | `src/lib/appointments.ts` | TAS: contract reuse only |
+| `PATCH /api/appointments/[id]/status` | `src/lib/appointments.ts` (`setAppointmentStatus`) | TAS: `STATUS_TRANSITIONS` state machine |
+| `POST /api/gate/scans` | `src/lib/appointments.ts` (`getAppointment`, `setAppointmentStatus` for check-in) | GateWatch: `review.ts` (`routeScan`, `needsReview`, threshold 70) |
+| `GET /api/gate/reviews`, `POST /api/gate/reviews/[id]/decide` | direct DB (review queue owned by the platform) | GateWatch: decision vocabulary only |
+| `POST/GET /api/planning/runs`, `GET /api/planning/runs/[id]` | `src/lib/planning.ts` | BerthWise: `berth.ts`, `ga.ts`, `exact.ts`, `validate.ts` |
+| `POST/GET /api/simulate/runs`, `GET /api/simulate/runs/[id]` | `src/lib/simulation.ts` | PortTwin: `service.ts`, `scenarios.ts`, `contracts.ts`, `errors.ts` |
+| `GET /api/simulate/compare` | `src/lib/simulation.ts` (`compareSimulationRuns`) | PortTwin: output DTOs only |
+| `GET /api/dashboard` | `src/lib/dashboard.ts` | none (raw counts) |
+| `GET /api/health` | none | none |
+| `POST /api/auth/*` | `src/lib/auth.ts` | none (demo JWT) |
+
+The UI server actions (`src/lib/actions.ts`) deliberately bypass the REST
+routes: `createAppointmentAction`, `transitionAppointmentAction`,
+`submitScanAction`, `decideReviewAction` (→ `src/lib/demo-workflow.ts`),
+`createSimulationRunAction`, `createSimulationRunFromAppointmentsAction`.
+REST↔action parity for the gate workflow (auto-accept check-in, degrade to
+human-review, separation of duties, 60/min throttle, atomic persistence) is
+locked by `src/lib/actions-security.test.ts`.
+
+## Shared database records between modules (2026-10-19)
+
+| Table | Written by | Read by | Relationship |
+|---|---|---|---|
+| `appointments` | TAS UI + API | GateWatch scans (server-side ref), dashboard, bridge summary | `gate_verification_events.appointment_id` → `appointments.id` (FK) |
+| `gate_verification_events` | GateWatch scans | review queue, dashboard | `review_items.event_id` → `gate_verification_events.id` (FK, UNIQUE) |
+| `review_items` | GateWatch (scan routing) + supervisors (decisions) | review queue, dashboard | join to events; no link to appointments except through the event |
+| `berth_plans` | BerthWise runs | planning pages, dashboard | **standalone** — no FK to appointments or any other module |
+| `simulation_runs` | PortTwin runs (incl. bridge runs) | simulator pages, dashboard | **standalone** — no FK to appointments; the bridge is parametric (assumptions text only) |
+| `audit_events` | all modules | dashboard (recent tail) | cross-cutting: `(entity, entity_id)` indexes, no FKs |
+| `idempotency_keys` | appointments | appointments | replay guard for appointment creation |
+| `demo_users` | seed | everything (`created_by`, `actor_id`) | convention only, no FKs |
+
+## Missing links — NOT implemented (honest list, 2026-10-19)
+
+1. **TAS optimizer not wired.** `src/vendored/tas/optimizer.ts` (+ annealer,
+   exact, formulation, pareto, predictor, pricing, replan, statistics,
+   stochastic, simulation) is imported nowhere. Decision documented in
+   `docs/TAS-OPTIMIZER-DECISION.md` — the input contract (`BookingRequest`)
+   requires cargo/move/preferred windows/lead-time/no-show data the platform
+   never collects; fabricating defaults would violate the no-fake-data rule.
+2. **No appointment → berth-plan link.** BerthWise runs reference no
+   appointment data at all. The demo workflow deliberately bridges to
+   PortTwin (truck volume is the natural fit), not to berth allocation.
+3. **No BerthWise ↔ PortTwin coupling.** Plans and simulations never
+   reference each other; the compare page compares two simulation runs only.
+4. **GateWatch `tas-adapter.ts` not wired.** Superseded by the server-side
+   ID lookup — the platform never trusts client-supplied appointment data.
+5. **TAS recommendation contracts not wired.** The versioned
+   reschedule / cancel-booking / reallocate-gate / notify-carrier payloads
+   (`recommendation.ts`) have no UI or API surface.
+6. **PortTwin engine in-memory audit not used.** The platform persists to
+   SQLite instead (deliberate; the engine audit is not reachable).
+7. **The bridge is one-directional and parametric.** Assumptions travel as
+   text on the run; nothing structural (no FK, no slot feed) connects TAS to
+   PortTwin, and nothing flows back.
+
+## Test coverage (`npm run test` — 263 tests, 19 files, all green — verified 2026-10-19)
 
 | Test file | Tests | Covers |
 |---|---|---|
@@ -101,7 +191,9 @@ PortTwin from `src/sim/`. Zod `^4.6.7` in both sides, no import adjustments need
 | `src/lib/limitations.test.ts` | 6 | Limitation verification: replay, atomicity, provenance |
 | `src/app/api/dashboard/dashboard-route.test.ts` | 5 | Dashboard counts reflect real mutations |
 | `src/lib/demo-scenario.test.ts` | 1 | Demo scenario integrity |
-| **Total** | **245** | — |
+| `src/lib/demo-workflow.test.ts` | 6 | Cross-module workflow: appointment → scan → review → decision → bridge → baseline-vs-proposed compare |
+| `src/lib/actions-security.test.ts` | 12 | UI action parity with REST: separation of duties, decision validation, atomic scan persistence, auto-accept check-in + degrade, scan throttle |
+| **Total** | **263** | — |
 
 **Coverage gaps (known):**
 
