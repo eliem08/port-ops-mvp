@@ -9,7 +9,7 @@ from four standalone Casablanca port-operations repos into one platform:
 
 | Module | Source repo (GitHub) | What it contributes |
 |---|---|---|
-| TAS | `eliem08/tas-casablanca` | Truck-appointment contracts (status state machine v1.0.0); optimizer vendored but not yet on an interactive path |
+| TAS | `eliem08/tas-casablanca` | Truck-appointment contracts (status state machine v1.0.0); optimizer vendored for provenance but **not imported anywhere** in platform code (verified 2026-10-18: zero imports of `src/vendored/tas/`; no UI page or API route calls it) |
 | GateWatch | `eliem08/gatewatch` | Gate-scan verification logic (`verify.ts`, `review.ts`) |
 | BerthWise | `eliem08/berthwise` | Berth-allocation solvers (exact, greedy, annealing, tabu, genetic) |
 | PortTwin | `eliem08/porttwin` | Discrete-event operations simulator (`runScenario`) |

@@ -81,7 +81,7 @@ would require.
 | 2 | Demo auth providers, not a real IdP | **Open by design.** See "Explicitly NOT protected" above. |
 | 3 | GateWatch payload-replay risk | **DISSOLVED BY CONSTRUCTION.** Appointment is loaded server-side by ID; client appointment data is never trusted. |
 | 4 | TAS non-atomic idempotency | **FIXED.** SQLite UNIQUE constraints + transactions; see §1. |
-| 5 | BerthWise optimization limits | **Documented.** Exact solver: hard ceiling of 8 vessels (`EXACT_MAX_VESSELS`); ALNS vendored but excluded from interactive paths (superlinear); heuristics are labeled non-optimal. `berth_plans.proven_optimal` is 1 only for the exact solver. |
+| 5 | BerthWise optimization limits | **Documented.** Exact solver: hard ceiling of 8 vessels (`EXACT_MAX_VESSELS`); ALNS vendored but excluded from interactive paths (superlinear); heuristics are labeled non-optimal. `berth_plans.proven_optimal` is 1 only when the exact solver ran *and exhausted its search* (the 2 000 000-node cap may leave it 0). |
 | 6 | PortTwin uncalibrated | **Documented.** `simulation_runs.calibrated = 0` always; `UNCALIBRATED_NOTICE` on every surface; KPI figures are provenance-labeled `simulated`/`assumed`, never `measured`. |
 
 ## 4. What production would need

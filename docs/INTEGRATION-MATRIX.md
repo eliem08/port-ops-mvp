@@ -44,7 +44,7 @@ PortTwin from `src/sim/`. Zod `^4.6.7` in both sides, no import adjustments need
 |---|---|---|
 | `contracts/appointment.ts`, `contracts/index.ts`, `contracts/recommendation.ts` | Yes (contract reuse, see above) | Enum + UTC discipline re-declared in platform contracts; referenced as source of truth |
 | `types.ts` | No | Vendored for provenance; not imported |
-| `optimizer.ts`, `annealer.ts`, `exact.ts`, `formulation.ts`, `pareto.ts`, `predictor.ts`, `pricing.ts`, `replan.ts`, `statistics.ts`, `stochastic.ts`, `simulation.ts`, `data.ts`, `csv.ts`, `request-validation.ts` | No | Slot-optimization engine vendored but **not on any interactive path in slice 1**; platform appointments are CRUD + state machine |
+| `optimizer.ts`, `annealer.ts`, `exact.ts`, `formulation.ts`, `pareto.ts`, `predictor.ts`, `pricing.ts`, `replan.ts`, `statistics.ts`, `stochastic.ts`, `simulation.ts`, `data.ts`, `csv.ts`, `request-validation.ts` | No | Slot-optimization engine vendored but **not imported anywhere in platform code** (verified: zero imports of `src/vendored/tas/` outside the vendor drop); no UI page or API route calls the TAS optimizer. Platform appointments are CRUD + state machine. |
 | `server/audit.ts`, `server/auth.ts`, `server/idempotency.ts`, `server/logger.ts`, `server/rate-limit.ts`, `server/stores.ts` | No | Not wired — platform implements its own auth/idempotency/audit on SQLite |
 | `datasets/schemas.ts` | No | Vendored for provenance |
 | TAS `server/api-guard.ts` | — | **Not vendored** (exists upstream, not copied) |
@@ -64,7 +64,7 @@ PortTwin from `src/sim/`. Zod `^4.6.7` in both sides, no import adjustments need
 |---|---|---|
 | `lib/berth.ts` (`planGreedy`, `planOptimized`, `planTabu`) | Yes — `src/lib/planning.ts` | Heuristics run with 2 000 ms wall-clock budget (`HEURISTIC_TIME_LIMIT_MS`); seed-default 42; results DTO'd to camelCase; `proven_optimal = 0` |
 | `lib/ga.ts` (`planGA`) | Yes — `src/lib/planning.ts` | Same budget/seed treatment |
-| `lib/exact.ts` (`solveExact`, `EXACT_MAX_VESSELS = 8`) | Yes — `src/lib/planning.ts` | Hard ceiling enforced; `proven_optimal = 1` only here; falls back to labeled greedy above 8 vessels |
+| `lib/exact.ts` (`solveExact`, `EXACT_MAX_VESSELS = 8`) | Yes — `src/lib/planning.ts` | Hard ceiling enforced on the *input* vessel count; `proven_optimal = 1` only when `solveExact` exhausts its search (node cap 2 000 000 may leave it `0`); falls back to labeled greedy above 8 vessels |
 | `lib/validate.ts` (`assertPlanningInputs`) | Yes | Input assertions below the Zod boundary |
 | `lib/rng.ts`, `lib/tide.ts`, `lib/economics.ts`, `lib/cranes.ts`, `lib/types.ts` | Indirectly (internal solver closure) | Not imported directly by platform code |
 | `lib/alns.ts` (`planALNS`) | **No — deliberate exclusion** | Superlinear scaling; never await on the interactive path. Vendored for future batch/offline use |
@@ -80,28 +80,38 @@ PortTwin from `src/sim/`. Zod `^4.6.7` in both sides, no import adjustments need
 | `errors.ts` (`toPublicError`) | Yes | Structured errors → sanitized public envelope |
 | `rng.ts`, `types.ts`, `disruptions.ts`, `stats.ts`, `engine.ts`, `costs.ts`, `montecarlo.ts`, `validate.ts`, `datasets.ts`, `audit.ts` | Indirectly (internal engine closure) | Not imported directly; note the engine's in-memory audit is **not** used — the platform persists to SQLite instead |
 
-## Test coverage (`npm run test` — 90 tests, 6 files, all green)
+## Test coverage (`npm run test` — 245 tests, 17 files, all green — verified 2026-10-18)
 
 | Test file | Tests | Covers |
 |---|---|---|
-| `src/contracts/contracts.test.ts` | 17 | Unified Zod contracts: status transitions, UTC-Z datetimes, scan input, plan/simulation inputs |
+| `src/lib/state-machine.test.ts` | 42 | Appointment status state machine |
+| `src/lib/security.test.ts` | 28 | Security regression (auth, validation, replay, fail-closed) |
+| `src/app/api/gate/gate-routes.test.ts` | 23 | Gate API routes: auth gates, validation, scan routing |
 | `src/lib/planning.test.ts` | 22 | Planning domain: solver mapping, input hashing, provenance labels, idempotency |
 | `src/lib/simulation.test.ts` | 19 | Simulation domain: preset binding, provenance labels, uncalibrated notice, error mapping |
-| `src/app/api/planning/runs/route.test.ts` | 11 | Planning API routes: auth gates, validation, idempotent replays |
+| `src/app/api/appointments/appointments-routes.test.ts` | 18 | Appointment API routes: auth gates, validation, idempotent replays |
+| `src/contracts/contracts.test.ts` | 17 | Unified Zod contracts: status transitions, UTC-Z datetimes, scan input, plan/simulation inputs |
 | `src/app/api/simulate/simulate-routes.test.ts` | 13 | Simulation API routes + compare: auth gates, validation, idempotent replays |
+| `src/app/api/planning/runs/route.test.ts` | 11 | Planning API routes: auth gates, validation, idempotent replays |
+| `src/lib/audit-trail.test.ts` | 10 | Append-only audit trail |
+| `src/app/api/auth/auth-routes.test.ts` | 9 | Auth routes: login/logout/me, session handling |
 | `src/vendored/gatewatch/review.regression.test.ts` | 8 | Fail-closed regression: NaN/missing/101 confidence never auto-accepts |
+| `src/lib/auth-secret.test.ts` | 7 | Secret handling, startup refusal behavior |
+| `src/app/api/idempotency.test.ts` | 6 | Idempotency across routes |
+| `src/lib/limitations.test.ts` | 6 | Limitation verification: replay, atomicity, provenance |
+| `src/app/api/dashboard/dashboard-route.test.ts` | 5 | Dashboard counts reflect real mutations |
+| `src/lib/demo-scenario.test.ts` | 1 | Demo scenario integrity |
+| **Total** | **245** | — |
 
 **Coverage gaps (known):**
 
-1. `src/app/api/appointments/appointments-routes.test.ts` is **untracked and
-   broken** — it imports a non-existent `@/test-utils/route-harness` and fails
-   at collection (`Cannot access '__vi_import_0__' before initialization`). It
-   contributes 0 tests. Appointments and gate API routes have no passing route
-   tests on this branch.
-2. The vendored BerthWise, PortTwin, and TAS logic is covered by its **upstream**
+1. The vendored BerthWise, PortTwin, and TAS logic is covered by its **upstream**
    test suites (BerthWise/PortTwin/TAS/GateWatch repos), not re-run here — the
    platform tests cover the integration seams, not the vendored internals.
    (Exception: the GateWatch fail-closed regression, which is deliberately
    duplicated here.)
-3. UI pages (React components) have no tests; `src/test-utils/sqlite-shim.ts`
+2. UI pages (React components) have no tests; `src/test-utils/sqlite-shim.ts`
    is test-only infrastructure.
+
+(Resolved 2026-10-18: the previously broken `appointments-routes.test.ts`
+— missing `@/test-utils/route-harness` — is now fixed, tracked, and passing.)
