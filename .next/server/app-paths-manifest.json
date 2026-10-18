@@ -1,0 +1,21 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/appointments/[id]/route": "app/api/appointments/[id]/route.js",
+  "/api/appointments/route": "app/api/appointments/route.js",
+  "/api/auth/login/route": "app/api/auth/login/route.js",
+  "/api/auth/logout/route": "app/api/auth/logout/route.js",
+  "/api/auth/me/route": "app/api/auth/me/route.js",
+  "/api/dashboard/route": "app/api/dashboard/route.js",
+  "/api/gate/reviews/[id]/decide/route": "app/api/gate/reviews/[id]/decide/route.js",
+  "/api/gate/reviews/route": "app/api/gate/reviews/route.js",
+  "/api/gate/scans/route": "app/api/gate/scans/route.js",
+  "/api/health/route": "app/api/health/route.js",
+  "/api/appointments/[id]/status/route": "app/api/appointments/[id]/status/route.js",
+  "/appointments/new/page": "app/appointments/new/page.js",
+  "/gate/page": "app/gate/page.js",
+  "/login/page": "app/login/page.js",
+  "/gate/reviews/page": "app/gate/reviews/page.js",
+  "/appointments/page": "app/appointments/page.js",
+  "/page": "app/page.js",
+  "/appointments/[id]/page": "app/appointments/[id]/page.js"
+}
