@@ -8,7 +8,7 @@ There is no server to restart and no cloud state to reconcile.
 | Command | What it does |
 |---|---|
 | `npm run db:migrate` | Creates the schema (idempotent; tracks `schema_migrations`). Run once after `npm install`. |
-| `npm run db:seed` | Inserts 5 demo users + 5 synthetic appointments (+ audit events). Safe to re-run (`INSERT OR IGNORE`). |
+| `npm run db:seed` | Inserts 5 demo users, 20 synthetic appointments, 10 gate verification events, 3 review items, 5 berth plans, 5 simulation runs, 69 audit events. Safe to re-run (`INSERT OR IGNORE`). |
 | `npm run db:reset` | **Wipes the demo database.** Requires `ALLOW_DB_RESET=1` and **refuses in production** (`NODE_ENV=production`). After reset, run `db:migrate && db:seed`. |
 
 Full fresh start:
@@ -87,14 +87,14 @@ DEMO_AUTH_SECRET=<random-64-hex-chars>
 ### Tests
 
 ```bash
-npm run test        # vitest — 90 tests pass across 6 files
+npm run test        # vitest — 245 tests pass across 17 files (verified 2026-10-18)
 npm run typecheck   # tsc --noEmit
 ```
 
-Known issue: `src/app/api/appointments/appointments-routes.test.ts` is
-untracked and does not load (references a non-existent
-`@/test-utils/route-harness`; fails at collection with a hoisting error).
-It contributes 0 tests; the 90 passing tests above exclude it.
+Resolved 2026-10-18: `src/app/api/appointments/appointments-routes.test.ts`
+now exists, is tracked, and passes (18 tests) — the `@/test-utils/route-harness`
+problem was fixed by the sibling workstream. The current 245 tests / 17 files
+(see `docs/INTEGRATION-MATRIX.md`) all pass.
 
 Test-only: `src/test-utils/sqlite-shim.ts` provides a vitest shim for
 `node:sqlite`; it is not part of the app.
@@ -104,8 +104,10 @@ Test-only: `src/test-utils/sqlite-shim.ts` provides a vitest shim for
 - `.next/` build output is checked into the branch and drifts on every build
   (modified/deleted files). It is noise for review — ignore it; only
   `src/`, `docs/`, `VENDORED.md`, `README.md`, and config matter.
-- README's "UI in next slice" note for BerthWise/PortTwin is stale on
-  `feat/mvp-slice-1`: planning and simulation pages and API routes are live.
+- README's "UI in next slice" note for BerthWise/PortTwin was stale on
+  `feat/mvp-slice-1` and has been corrected (2026-10-18): planning and
+  simulation pages and API routes are live; the real limits are the exact
+  solver's 8-vessel ceiling and the uncalibrated model.
 - The appointments scan server action (`src/lib/actions.ts`) derives the demo
   slot window as `scheduled_at ± 1 h` — a demo simplification, not scheduling
   data.

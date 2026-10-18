@@ -9,7 +9,7 @@ from four standalone Casablanca port-operations repos into one platform:
 
 | Module | Source repo (GitHub) | What it contributes |
 |---|---|---|
-| TAS | `eliem08/tas-casablanca` | Truck-appointment contracts (status state machine v1.0.0); optimizer vendored but not yet on an interactive path |
+| TAS | `eliem08/tas-casablanca` | Truck-appointment contracts (status state machine v1.0.0); optimizer vendored for provenance but **not imported anywhere** in platform code (verified 2026-10-18: zero imports of `src/vendored/tas/`; no UI page or API route calls it) |
 | GateWatch | `eliem08/gatewatch` | Gate-scan verification logic (`verify.ts`, `review.ts`) |
 | BerthWise | `eliem08/berthwise` | Berth-allocation solvers (exact, greedy, annealing, tabu, genetic) |
 | PortTwin | `eliem08/porttwin` | Discrete-event operations simulator (`runScenario`) |
@@ -71,8 +71,42 @@ Two enforcement points sit in front of everything:
   requires a valid session cookie (API callers get 401 JSON; page visitors get
   redirected to `/login`).
 - `requireApiRole(req, minRole)` — every API route and server action checks the
-  session role server-side against a rank hierarchy. Client-side UI only *hides*
-  buttons; the server decides.
+  session role server-side against a rank hierarchy. The UI does **not** gate by
+  role: action buttons render for every logged-in identity and the server
+  answers 401/403 (`requireApiRole` in routes, `requireRole` in
+  `src/lib/actions.ts`). The single exception is `/gate/reviews`, which hides
+  the decision buttons from non-supervisor roles (`canDecide` in
+  `src/app/gate/reviews/page.tsx`) — the server action enforces the role
+  regardless.
+
+### 2.1 API route inventory (verified 2026-10-18 against source)
+
+Rank order: `operations_viewer` < `operations_operator` = `planner` <
+`supervisor` < `administrator`. Higher roles inherit lower permissions. Routes
+not listed here have no `requireApiRole` because the middleware already forces
+a valid session (`/api/auth/me` additionally 401s when no session exists).
+
+| Route | Methods | Minimum role | Notes |
+|---|---|---|---|
+| `/api/health` | GET | — (public) | No auth required (middleware-exempt) |
+| `/api/auth/login` | POST | — (public) | 10 attempts/min per IP (`loginRateLimiter`) |
+| `/api/auth/logout` | POST | — (public) | Clears session cookie |
+| `/api/auth/me` | GET | any logged-in session | 401 when no session |
+| `/api/dashboard` | GET | `operations_viewer` | — |
+| `/api/appointments` | GET | `operations_viewer` | List |
+| `/api/appointments` | POST | `operations_operator` | Create (idempotent) |
+| `/api/appointments/[id]` | GET | `operations_viewer` | Detail |
+| `/api/appointments/[id]/status` | PATCH | `operations_operator` | Status transition |
+| `/api/gate/scans` | POST | `operations_operator` | 60/min per user (`scanRateLimiter`) |
+| `/api/gate/reviews` | GET | `operations_viewer` | Pending queue |
+| `/api/gate/reviews/[id]/decide` | POST | `supervisor` | Approve/reject |
+| `/api/planning/runs` | GET | `operations_viewer` | List runs |
+| `/api/planning/runs` | POST | `planner` | Create run |
+| `/api/planning/runs/[id]` | GET | `operations_viewer` | Run detail |
+| `/api/simulate/runs` | GET | `operations_viewer` | List runs |
+| `/api/simulate/runs` | POST | `planner` | Create run |
+| `/api/simulate/runs/[id]` | GET | `operations_viewer` | Run detail |
+| `/api/simulate/compare` | GET | `operations_viewer` | Side-by-side comparison |
 
 ## 3. Module boundaries: vendored vs platform code
 
@@ -168,7 +202,11 @@ labeled `simulated: true` — the demo never claims a real scan happened.
   → map platform VesselInput/BerthInput → vendored Vessel/Berth
   → vendored solver: solveExact (≤8 vessels; throws above) | planGreedy |
     planOptimized | planTabu (2 s budget) | planGA
-  → provenance label: exact → proven_optimal=1; heuristic → proven_optimal=0 + banner
+  → provenance label: exact → `proven_optimal=1` only when the exact solver
+     exhausts its search (node cap 2 000 000 may leave it `0`); heuristics →
+     `proven_optimal=0` + banner. Above 8 vessels, `exact` requests fall back
+     to labeled greedy (`solverUsed: greedy`, `provenOptimal: false`,
+     `exactUnavailableReason` set) instead of being refused
   → INSERT berth_plans UNIQUE(input_hash, solver) → audit("planning.run_created")
   → /planning/runs/[id] renders assignments, utilization, unassigned vessels
 

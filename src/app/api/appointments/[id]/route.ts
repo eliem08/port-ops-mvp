@@ -1,6 +1,6 @@
 // GET /api/appointments/[id] — appointment detail + its verification history.
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { requireApiRole, jsonError } from "@/lib/auth";
 import { getDb } from "@/lib/db/client";
 import { handleRouteError, ok } from "@/lib/route-helpers";

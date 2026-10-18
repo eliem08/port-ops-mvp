@@ -11,7 +11,7 @@
 // nothing is ever labeled "measured".
 
 import type { DatabaseSync } from "node:sqlite";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import {
   PRESETS,
   presetParams,
@@ -344,21 +344,23 @@ export function toSimulationRunDTO(row: SimulationRunRow): SimulationRunDTO {
   const output = persisted.output ?? (persisted as unknown as SimulationOutput);
   const replications = output.confidenceIntervals?.[0]?.replications ?? 0;
   // Seed KPIs use snake_case; engine KPIs use camelCase. Normalize for the DTO.
-  const kpis = output.kpis as unknown as Record<string, any>;
+  // Loose shape: values are numbers when present, but the key set varies by source.
+  const kpis = output.kpis as unknown as Record<string, unknown>;
+  const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
   const utilPct = kpis.utilizationPct as { gate?: number; yard?: number; berth?: number } | undefined;
   const normalizedKpis = {
-    throughputTrucksPerHour: kpis.throughputTrucksPerHour ?? kpis.gate_throughput_per_h ?? 0,
-    throughputTeuPerHour: kpis.throughputTeuPerHour ?? 0,
-    meanWaitMin: kpis.meanWaitMin ?? kpis.avg_truck_turnaround_min ?? 0,
-    p95WaitMin: kpis.p95WaitMin ?? 0,
-    maxQueueMean: kpis.maxQueueMean ?? kpis.max_gate_queue ?? 0,
+    throughputTrucksPerHour: num(kpis.throughputTrucksPerHour ?? kpis.gate_throughput_per_h),
+    throughputTeuPerHour: num(kpis.throughputTeuPerHour),
+    meanWaitMin: num(kpis.meanWaitMin ?? kpis.avg_truck_turnaround_min),
+    p95WaitMin: num(kpis.p95WaitMin),
+    maxQueueMean: num(kpis.maxQueueMean ?? kpis.max_gate_queue),
     utilizationPct: {
-      gate: utilPct?.gate ?? 0,
-      yard: utilPct?.yard ?? 0,
-      berth: utilPct?.berth ?? kpis.berth_utilization_pct ?? 0,
+      gate: num(utilPct?.gate),
+      yard: num(utilPct?.yard),
+      berth: num(utilPct?.berth ?? kpis.berth_utilization_pct),
     },
-    co2Tonnes: kpis.co2Tonnes ?? 0,
-    completedTrucksMean: kpis.completedTrucksMean ?? 0,
+    co2Tonnes: num(kpis.co2Tonnes),
+    completedTrucksMean: num(kpis.completedTrucksMean),
   };
   return {
     id: row.id,
@@ -452,11 +454,18 @@ export function compareSimulationRuns(
  *
  * SimError from the engine is mapped to SimulationValidationError (400)
  * with the vendored public message.
+ *
+ * extraAssumptions (optional) are operator-supplied, explicit assumption
+ * strings — e.g. from the appointment→simulation bridge — stored verbatim
+ * AHEAD of the engine-derived assumptions. They are shown on the run detail
+ * page exactly as supplied: this is the "explicit bridge" mechanism, not a
+ * hidden feed.
  */
 export function createSimulationRun(
   db: DatabaseSync,
   userId: string,
-  input: CreateSimulationInput
+  input: CreateSimulationInput,
+  extraAssumptions: string[] = []
 ): { record: SimulationRunDTO; created: boolean } {
   const preset = PRESETS.find((p) => p.id === input.scenarioId);
   if (!preset) {
@@ -479,7 +488,18 @@ export function createSimulationRun(
     if (err instanceof SimulationValidationError) throw err;
     throw toSimulationValidationError(err);
   }
-  const hash = inputHash(validated);
+  // Idempotency hash: the engine input hash plus the bridge assumptions.
+  // Same logical input AND same assumptions → identical hash (replay-safe);
+  // identical input with DIFFERENT operator assumptions → different record,
+  // so an edited assumption can never be silently dropped by replay.
+  let hash = inputHash(validated);
+  if (extraAssumptions.length > 0) {
+    const bridgeHash = createHash("sha256")
+      .update(JSON.stringify(extraAssumptions))
+      .digest("hex")
+      .slice(0, 16);
+    hash = `${hash}:bridge:${bridgeHash}`;
+  }
 
   // Fast-path idempotent replay: this exact input already ran.
   const existing = getSimulationRow(db, hash);
@@ -504,7 +524,10 @@ export function createSimulationRun(
     appliedParams: pickAppliedParams(input.scenarioId, input.paramOverrides ?? {}),
   };
   const resultJson = JSON.stringify(persisted);
-  const assumptionsJson = JSON.stringify(buildAssumptions(preset, output));
+  const assumptionsJson = JSON.stringify([
+    ...extraAssumptions,
+    ...buildAssumptions(preset, output),
+  ]);
   const id = randomUUID();
 
   const { row, created } = withTransaction(

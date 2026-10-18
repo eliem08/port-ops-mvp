@@ -8,6 +8,10 @@ import {
   DEMO_SIMULATION_SCENARIOS,
 } from "@/lib/simulation";
 import {
+  appointmentVolumeSummary,
+  proposeSimulationBridge,
+} from "@/lib/demo-workflow";
+import {
   Card,
   EmptyState,
   SyntheticTag,
@@ -15,9 +19,19 @@ import {
   formatDateTime,
 } from "@/components/ui";
 import { NewSimulationForm, ComparePicker } from "./sim-form";
+import { AppointmentBridgeForm } from "./bridge-form";
 
 export default async function SimulatePage() {
   const runs = listSimulationRuns(getDb());
+
+  // Explicit appointment→simulation bridge: computed live from the TAS
+  // appointments table. Nothing here is automatic — the bridge form shows
+  // the derivation and lets the operator edit every assumption.
+  const bridgeSummary = appointmentVolumeSummary(
+    getDb(),
+    new Date().toISOString().slice(0, 10)
+  );
+  const bridgeProposal = proposeSimulationBridge(bridgeSummary);
 
   return (
     <div className="space-y-6">
@@ -36,6 +50,14 @@ export default async function SimulatePage() {
 
       <Card title="New simulation">
         <NewSimulationForm scenarios={DEMO_SIMULATION_SCENARIOS} />
+      </Card>
+
+      <Card title="Explicit bridge: today's appointments → simulation">
+        <AppointmentBridgeForm
+          summary={bridgeSummary}
+          proposal={bridgeProposal}
+          scenarios={DEMO_SIMULATION_SCENARIOS}
+        />
       </Card>
 
       <Card

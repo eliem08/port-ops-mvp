@@ -15,7 +15,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { DatabaseSync } from "node:sqlite";
 import { SignJWT } from "jose";
-import { NextRequest } from "next/server";
 import { freshTestDb, postJson } from "@/test-utils/route-harness";
 import { loginRateLimiter, scanRateLimiter } from "@/lib/rate-limit";
 import { createAppointment, setAppointmentStatus, getAppointment } from "@/lib/appointments";
