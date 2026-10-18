@@ -3,6 +3,19 @@
 // - Every consequential API route MUST call requireRole() server-side.
 // - The UI displays a permanent DEMO banner; this must never be mistaken
 //   for a real identity provider.
+//
+// CSRF POSTURE (documented, not just assumed):
+// - The session cookie is httpOnly + SameSite=Lax (+ Secure in production).
+//   SameSite=Lax means cross-site POST/PUT/PATCH/DELETE do NOT carry the
+//   cookie — only top-level GET navigations do, and this API has no
+//   state-changing GET routes. So classic CSRF against the mutation routes
+//   is blocked at the cookie layer for modern browsers.
+// - Login CSRF is a non-issue here: login is passwordless and picks one of
+//   the PUBLIC demo identities (listed on the login page); there is no
+//   victim credential to fixate.
+// - If this ever grows real credentials: add an anti-CSRF token (double-
+//   submit or synchronizer) on all mutations, rotate the signing secret,
+//   and shorten the 12h session lifetime.
 
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
@@ -11,8 +24,18 @@ import { DemoRole } from "@/contracts";
 import { getDb } from "./db/client";
 
 const COOKIE_NAME = "portops_demo_session";
+
+const rawSecret = process.env.DEMO_AUTH_SECRET;
+if (!rawSecret && process.env.NODE_ENV === "production") {
+  // Loud fail-open warning: anyone with the repo default could forge
+  // sessions. Demo only — never ship without a real secret.
+  console.error(
+    "[auth] DEMO_AUTH_SECRET is not set in production — sessions are signed " +
+      "with a publicly known fallback. This demo must not be exposed publicly."
+  );
+}
 const secret = new TextEncoder().encode(
-  process.env.DEMO_AUTH_SECRET ?? "dev-only-change-me-in-production"
+  rawSecret ?? "dev-only-change-me-in-production"
 );
 
 export interface DemoSession {

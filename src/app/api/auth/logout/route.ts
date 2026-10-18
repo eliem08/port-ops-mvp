@@ -14,9 +14,12 @@ export async function POST() {
   await clearSession();
   const res = NextResponse.json({ ok: true });
   // Ensure the browser drops the cookie even if jar.delete behaved differently.
+  // Flags must MIRROR setSessionCookie — a Secure cookie set in production
+  // is NOT cleared by a deletion response that omits `secure: true`.
   res.cookies.set("portops_demo_session", "", {
     httpOnly: true,
     sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: 0,
   });

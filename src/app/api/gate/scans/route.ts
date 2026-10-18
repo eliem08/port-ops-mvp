@@ -9,6 +9,7 @@ import { requireApiRole, jsonError } from "@/lib/auth";
 import { getDb } from "@/lib/db/client";
 import { audit } from "@/lib/audit";
 import { readJsonLimited, handleRouteError, ok, withTransaction } from "@/lib/route-helpers";
+import { scanRateLimiter, rateLimitExceeded } from "@/lib/rate-limit";
 import { getAppointment, setAppointmentStatus } from "@/lib/appointments";
 import {
   SubmitScanInput,
@@ -29,6 +30,17 @@ const normalize = (s: string | null): string | null => {
 export async function POST(req: NextRequest): Promise<Response> {
   try {
     const session = await requireApiRole(req, "operations_operator");
+
+    // Per-user throttle on the scan endpoint (60/min). Checked AFTER auth
+    // so the key is the authenticated user, not a spoofable IP.
+    const rl = scanRateLimiter.check(`user:${session.userId}`);
+    if (!rl.allowed) {
+      return rateLimitExceeded(
+        rl.retryAfterSec,
+        "Too many scan submissions. Please try again shortly."
+      );
+    }
+
     const body = await readJsonLimited(req);
 
     const parsed = SubmitScanInput.safeParse(body);
