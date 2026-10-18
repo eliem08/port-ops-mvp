@@ -214,3 +214,132 @@ Both repos use zod `^4.6.7`, so the contract schemas need no adaptation.
 - `sim/vv.ts`, `sim/sensitivity.ts`, `sim/calibration.ts`, `sim/doe.ts`, `sim/outputAnalysis.ts` — V&V/analysis utilities; pure but outside this slice's scope (calibration pass still open as future work).
 - `sim/erlang.ts` — pure but unreferenced by the engine/service; skipped.
 - React components, pages/routes, CSS, tests — per vendoring rules.
+
+---
+
+# VENDORED — TAS truck appointment coordination (tas-casablanca)
+
+> **DO-NOT-EDIT POLICY.** This directory is a read-only vendor drop of the
+> TAS appointment contracts and slot-optimization engine. **Never edit these
+> files by hand.** Changes happen in the source repo
+> (`~/workspace/port-harden/tas-casablanca`, Phase E HEAD), are re-verified
+> there, and are re-copied verbatim. See `docs/INTEGRATION-MATRIX.md` for the
+> full module-level integration table.
+
+## Source
+
+- Repository: `~/workspace/port-harden/tas-casablanca` (Phase E HEAD) — **read-only**
+- Commit: `7cdaaf8245afb566636abc7916d5907244a23d4d` (short SHA `7cdaaf8`;
+  verified `git rev-parse HEAD`, clean working tree)
+- Vendored: 2026-10-18
+- Method: verbatim `cp` of 25 files, preserving relative structure
+  (`lib/*` → `src/vendored/tas/*`, `lib/contracts/*` → `src/vendored/tas/contracts/*`,
+  `lib/datasets/*` → `src/vendored/tas/datasets/*`,
+  `lib/server/*` → `src/vendored/tas/server/*`). All imports were already
+  relative, so no import-path adjustments were required.
+
+> SHA attribution note: no VENDORED.md section was written at copy time, so
+> the SHA above was recovered on 2026-10-18 by byte-diffing every vendored
+> file against the upstream working tree (clean) — see INTEGRATION-MATRIX.
+
+## Files vendored (25)
+
+| Vendored file | Original path | What it is |
+|---|---|---|
+| `contracts/appointment.ts` | `lib/contracts/appointment.ts` | `AppointmentStatus` 6-status enum, state machine, `APPOINTMENT_CONTRACT_VERSION = "1.0.0"` — the contract reuse source |
+| `contracts/index.ts` | `lib/contracts/index.ts` | Contract barrel |
+| `contracts/recommendation.ts` | `lib/contracts/recommendation.ts` | Recommendation contract |
+| `types.ts` | `lib/types.ts` | Shared types |
+| `data.ts` | `lib/data.ts` | Synthetic data helpers |
+| `csv.ts` | `lib/csv.ts` | CSV export |
+| `datasets/schemas.ts` | `lib/datasets/schemas.ts` | Dataset schemas |
+| `request-validation.ts` | `lib/request-validation.ts` | Request validation helpers |
+| `optimizer.ts` | `lib/optimizer.ts` | Slot optimizer |
+| `annealer.ts` | `lib/annealer.ts` | Annealing optimizer |
+| `exact.ts` | `lib/exact.ts` | Exact optimizer |
+| `formulation.ts` | `lib/formulation.ts` | Optimization formulation |
+| `pareto.ts` | `lib/pareto.ts` | Pareto frontier |
+| `predictor.ts` | `lib/predictor.ts` | Demand predictor |
+| `pricing.ts` | `lib/pricing.ts` | Slot pricing |
+| `replan.ts` | `lib/replan.ts` | Replanning |
+| `statistics.ts` | `lib/statistics.ts` | Slot statistics |
+| `stochastic.ts` | `lib/stochastic.ts` | Stochastic optimization |
+| `simulation.ts` | `lib/simulation.ts` | TAS-side simulation |
+| `server/audit.ts` | `lib/server/audit.ts` | Upstream audit helper |
+| `server/auth.ts` | `lib/server/auth.ts` | Upstream auth helper |
+| `server/idempotency.ts` | `lib/server/idempotency.ts` | Upstream idempotency helper |
+| `server/logger.ts` | `lib/server/logger.ts` | Upstream logger |
+| `server/rate-limit.ts` | `lib/server/rate-limit.ts` | Upstream rate limiter |
+| `server/stores.ts` | `lib/server/stores.ts` | Upstream stores |
+
+## Wiring status (verified 2026-10-18 — grep for imports of `src/vendored/tas/`)
+
+**Nothing under `src/vendored/tas/` is imported by any platform code — zero
+imports outside the vendor drop.** Concretely:
+
+- **Slot-optimization engine** (`optimizer.ts`, `annealer.ts`, `exact.ts`,
+  `formulation.ts`, `pareto.ts`, `predictor.ts`, `pricing.ts`, `replan.ts`,
+  `statistics.ts`, `stochastic.ts`): vendored for provenance only. **No UI
+  page and no API route calls the TAS optimizer** — the claim "vendored but
+  not on interactive path" in `docs/INTEGRATION-MATRIX.md` is accurate.
+- **Server helpers** (`server/audit.ts`, `server/auth.ts`,
+  `server/idempotency.ts`, `server/logger.ts`, `server/rate-limit.ts`,
+  `server/stores.ts`): **not wired** — the platform implements its own
+  auth (`src/lib/auth.ts`), idempotency (SQLite UNIQUE + transactions), and
+  audit (`src/lib/audit.ts`). Note the platform's rate limiter is its own
+  `src/lib/rate-limit.ts` (in-memory token bucket), **not** the vendored TAS
+  one.
+- **Contract influence only:** the platform *re-declares* the TAS
+  `AppointmentStatus` enum and UTC-Z datetime discipline in
+  `src/contracts/index.ts` (cited as source of truth — TAS contract v1.0.0)
+  rather than importing them from the vendor drop.
+
+## Verification method
+
+- Every vendored file is byte-identical to upstream at the recorded SHA
+  (byte-verified 2026-10-18; spot re-checked today:
+  `contracts/appointment.ts` and `optimizer.ts` — `diff` clean against
+  upstream working tree).
+
+---
+
+# VENDORED — GateWatch gate-scan verification (gatewatch)
+
+> **DO-NOT-EDIT POLICY.** This directory is a read-only vendor drop of the
+> GateWatch verification logic. **Never edit these files by hand.** Changes
+> happen in the source repo (`~/workspace/port-harden/gatewatch`, Phase E
+> HEAD), are re-verified there, and are re-copied verbatim. See
+> `docs/INTEGRATION-MATRIX.md` for the full module-level integration table.
+
+## Source
+
+- Repository: `~/workspace/port-harden/gatewatch` (Phase E HEAD) — **read-only**
+- Commit: `9e70c2f3d933c015a8a9408bf3767905e10f7078` (short SHA `9e70c2f`;
+  verified `git rev-parse HEAD`, clean working tree)
+- Vendored: 2026-10-18
+- Method: verbatim `cp` of 7 files, preserving relative structure
+  (`src/lib/*` → `src/vendored/gatewatch/*`). All imports were already
+  relative, so no import-path adjustments were required.
+
+> SHA attribution note: no VENDORED.md section was written at copy time, so
+> the SHA above was recovered on 2026-10-18 by byte-diffing every vendored
+> file against the upstream working tree (clean) — see INTEGRATION-MATRIX.
+
+## Files vendored (7)
+
+| Vendored file | Original path | What it is | Wired into platform? |
+|---|---|---|---|
+| `review.ts` | `src/lib/review.ts` | `routeScan`, `needsReview`, `DEFAULT_REVIEW_THRESHOLD = 70` | **Yes** — `POST /api/gate/scans` |
+| `verify.ts` | `src/lib/verify.ts` | `verifyGateEventAgainstAppointment` | **Yes** — `submitScanAction` (`src/lib/actions.ts`, dynamic import) |
+| `contracts.ts` | `src/lib/contracts.ts` | Decision vocabulary contracts | No — provenance only |
+| `iso6346.ts` | `src/lib/iso6346.ts` | ISO 6346 container check-digit | No — provenance only |
+| `plates.ts` | `src/lib/plates.ts` | Plate parsing helpers | No — provenance only |
+| `tas-adapter.ts` | `src/lib/tas-adapter.ts` | TAS payload reconciliation | No — not on the interactive path; superseded by the platform's server-side appointment-ID lookup |
+| `review.regression.test.ts` | `src/lib/review.regression.test.ts` | Fail-closed regression (8 tests) | **Yes** — runs in the platform test suite |
+
+## Verification method
+
+- Every vendored file is byte-identical to upstream at the recorded SHA
+  (byte-verified 2026-10-18; spot re-checked today:
+  `review.ts` and `tas-adapter.ts` — `diff` clean against upstream working
+  tree).
