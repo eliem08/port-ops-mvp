@@ -15,12 +15,17 @@ import { getSession, type DemoSession } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import {
   CreateAppointmentInput,
+  CreateSimulationInput,
   STATUS_TRANSITIONS,
   AppointmentStatus,
   type AppointmentStatus as AppointmentStatusT,
   type DemoRole,
 } from "@/contracts";
 import { z } from "zod";
+import {
+  createSimulationRun,
+  SimulationValidationError,
+} from "@/lib/simulation";
 
 const ROLE_RANK: Record<DemoRole, number> = {
   operations_viewer: 0,
@@ -319,4 +324,64 @@ export async function decideReviewAction(
   revalidatePath("/gate/reviews");
   revalidatePath("/");
   return { ok: true, message: `Review ${decision}.` };
+}
+
+// ── PortTwin simulation ──────────────────────────────────────────────────
+
+export async function createSimulationRunAction(
+  prev: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  const session = await requireRole("planner");
+
+  const num = (v: FormDataEntryValue | null): number | undefined => {
+    const s = String(v ?? "").trim();
+    return s === "" ? undefined : Number(s);
+  };
+
+  const raw = {
+    scenarioName: String(formData.get("scenarioName") ?? "").trim(),
+    scenarioId: String(formData.get("scenarioId") ?? "").trim(),
+    seed: num(formData.get("seed")),
+    replications: num(formData.get("replications")),
+    paramOverrides: {
+      horizonHours: num(formData.get("horizonHours")),
+      trucksPerDay: num(formData.get("trucksPerDay")),
+      numGates: num(formData.get("numGates")),
+      gateServiceMeanMin: num(formData.get("gateServiceMeanMin")),
+    },
+  };
+
+  const parsed = CreateSimulationInput.safeParse(raw);
+  if (!parsed.success) {
+    const fieldErrors: Record<string, string> = {};
+    for (const issue of parsed.error.issues) {
+      const key = String(issue.path[issue.path.length - 1] ?? "scenarioId");
+      fieldErrors[key] = issue.message;
+    }
+    return {
+      ok: false,
+      message: "Validation failed — fix the highlighted fields.",
+      fieldErrors,
+    };
+  }
+
+  const db = getDb();
+  let recordId: string;
+  try {
+    const { record } = createSimulationRun(db, session.userId, parsed.data);
+    recordId = record.id;
+    audit(session.userId, "simulation.run_created", "simulation", record.id, {
+      scenarioId: record.scenarioId,
+      synthetic: true,
+    });
+  } catch (e) {
+    if (e instanceof SimulationValidationError) {
+      return { ok: false, message: e.publicError.message };
+    }
+    return { ok: false, message: "Simulation failed unexpectedly." };
+  }
+
+  revalidatePath("/simulate");
+  redirect(`/simulate/runs/${recordId}`);
 }

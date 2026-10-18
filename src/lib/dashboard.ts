@@ -103,7 +103,9 @@ export function auditActionLabel(action: string): string {
     "scan.verified": "Scan verified",
     "review.decided": "Review decided",
     "plan.created": "Berth plan created",
+    "planning.run_created": "Planning run created",
     "simulation.created": "Simulation created",
+    "simulation.run_created": "Simulation run created",
     "auth.login": "Demo login",
     "auth.logout": "Demo logout",
   };
