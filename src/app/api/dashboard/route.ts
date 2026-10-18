@@ -45,6 +45,32 @@ export async function GET(req: NextRequest): Promise<Response> {
       0
     );
 
+    const plansBySolver: Record<string, number> = {};
+    for (const row of db
+      .prepare("SELECT solver, COUNT(*) AS n FROM berth_plans GROUP BY solver")
+      .all() as { solver: string; n: number }[]) {
+      plansBySolver[row.solver] = row.n;
+    }
+    const totalPlans = Object.values(plansBySolver).reduce((a, b) => a + b, 0);
+    const provenOptimalPlans = (
+      db
+        .prepare("SELECT COUNT(*) AS n FROM berth_plans WHERE proven_optimal = 1")
+        .get() as { n: number }
+    ).n;
+
+    const simulationsByScenario: Record<string, number> = {};
+    for (const row of db
+      .prepare(
+        "SELECT scenario_name, COUNT(*) AS n FROM simulation_runs GROUP BY scenario_name"
+      )
+      .all() as { scenario_name: string; n: number }[]) {
+      simulationsByScenario[row.scenario_name] = row.n;
+    }
+    const totalSimulations = Object.values(simulationsByScenario).reduce(
+      (a, b) => a + b,
+      0
+    );
+
     const recentAudit = (
       db
         .prepare(
@@ -78,6 +104,11 @@ export async function GET(req: NextRequest): Promise<Response> {
       pendingReviews,
       totalAppointments,
       totalVerifications,
+      plansBySolver,
+      totalPlans,
+      provenOptimalPlans,
+      simulationsByScenario,
+      totalSimulations,
       recentAudit,
       generatedAt: new Date().toISOString(),
     });

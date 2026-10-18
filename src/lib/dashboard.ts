@@ -26,6 +26,11 @@ export interface DashboardStats {
   verificationsByOutcome: Record<VerificationOutcome, number>;
   totalVerifications: number;
   pendingReviews: number;
+  plansBySolver: Record<string, number>;
+  totalPlans: number;
+  provenOptimalPlans: number;
+  simulationsByScenario: Record<string, number>;
+  totalSimulations: number;
   recentAudit: Array<{
     id: string;
     actorId: string;
@@ -83,6 +88,28 @@ export function getDashboardStats(): DashboardStats {
   const totalAppointments = Object.values(appointmentsByStatus).reduce((a, b) => a + b, 0);
   const totalVerifications = Object.values(verificationsByOutcome).reduce((a, b) => a + b, 0);
 
+  // Planning runs — real counts from berth_plans. proven_optimal is 1 only
+  // when the exact solver proved optimality; never inferred.
+  const plansBySolver: Record<string, number> = {};
+  for (const r of db
+    .prepare("SELECT solver, COUNT(*) AS c FROM berth_plans GROUP BY solver")
+    .all() as Array<{ solver: string; c: number }>) {
+    plansBySolver[r.solver] = r.c;
+  }
+  const totalPlans = Object.values(plansBySolver).reduce((a, b) => a + b, 0);
+  const provenOptimalPlans = (
+    db.prepare("SELECT COUNT(*) AS c FROM berth_plans WHERE proven_optimal = 1").get() as { c: number }
+  ).c;
+
+  // Simulation runs — real counts from simulation_runs. All synthetic, uncalibrated.
+  const simulationsByScenario: Record<string, number> = {};
+  for (const r of db
+    .prepare("SELECT scenario_name, COUNT(*) AS c FROM simulation_runs GROUP BY scenario_name")
+    .all() as Array<{ scenario_name: string; c: number }>) {
+    simulationsByScenario[r.scenario_name] = r.c;
+  }
+  const totalSimulations = Object.values(simulationsByScenario).reduce((a, b) => a + b, 0);
+
   return {
     synthetic: true,
     appointmentsByStatus,
@@ -90,6 +117,11 @@ export function getDashboardStats(): DashboardStats {
     verificationsByOutcome,
     totalVerifications,
     pendingReviews: pendingRow.c,
+    plansBySolver,
+    totalPlans,
+    provenOptimalPlans,
+    simulationsByScenario,
+    totalSimulations,
     recentAudit,
   };
 }

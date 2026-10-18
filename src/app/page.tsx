@@ -103,6 +103,87 @@ export default function DashboardPage() {
         </Card>
       </div>
 
+      {/* Planning + simulation — real DB counts */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card
+          title="Planning runs"
+          action={
+            <Link href="/planning" className="text-sm font-medium text-accent hover:underline">
+              Planning
+            </Link>
+          }
+        >
+          {stats.totalPlans === 0 ? (
+            <EmptyState
+              title="No planning runs yet"
+              hint="Run a berth-planning scenario from the Planning page."
+            />
+          ) : (
+            <div>
+              <dl className="grid grid-cols-2 gap-3">
+                <div className="rounded border border-line bg-paper px-3 py-3">
+                  <p className="text-sm text-muted">Total runs</p>
+                  <p className="text-2xl font-bold text-ink">{stats.totalPlans}</p>
+                </div>
+                <div className="rounded border border-line bg-paper px-3 py-3">
+                  <p className="text-sm text-muted">Proven optimal</p>
+                  <p className="text-2xl font-bold text-ink">{stats.provenOptimalPlans}</p>
+                </div>
+              </dl>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {Object.entries(stats.plansBySolver).map(([solver, n]) => (
+                  <span
+                    key={solver}
+                    className="rounded-full border border-line bg-paper px-2.5 py-1 text-xs text-muted"
+                  >
+                    {solver}: {n}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-3 text-xs text-muted">
+                “Optimal” is shown only when the exact solver proved it.
+              </p>
+            </div>
+          )}
+        </Card>
+
+        <Card
+          title="Simulation runs"
+          action={
+            <Link href="/simulate" className="text-sm font-medium text-accent hover:underline">
+              Simulator
+            </Link>
+          }
+        >
+          {stats.totalSimulations === 0 ? (
+            <EmptyState
+              title="No simulations yet"
+              hint="Run a scenario from the Simulator page."
+            />
+          ) : (
+            <div>
+              <div className="rounded border border-line bg-paper px-3 py-3">
+                <p className="text-sm text-muted">Total runs</p>
+                <p className="text-2xl font-bold text-ink">{stats.totalSimulations}</p>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {Object.entries(stats.simulationsByScenario).map(([scenario, n]) => (
+                  <span
+                    key={scenario}
+                    className="rounded-full border border-line bg-paper px-2.5 py-1 text-xs text-muted"
+                  >
+                    {scenario}: {n}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-3 text-xs text-muted">
+                Uncalibrated model — illustrative outputs, not predictions.
+              </p>
+            </div>
+          )}
+        </Card>
+      </div>
+
       {/* Recent audit events */}
       <Card title="Recent audit events">
         {stats.recentAudit.length === 0 ? (
