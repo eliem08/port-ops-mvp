@@ -6,6 +6,9 @@ import {
   CreateAppointmentInput,
   SubmitScanInput,
   DemoRole,
+  CreatePlanInput,
+  SolverChoice,
+  AuditAction,
 } from "@/contracts";
 
 describe("AppointmentStatus", () => {
@@ -91,5 +94,112 @@ describe("DemoRole", () => {
       "supervisor",
       "administrator",
     ]);
+  });
+});
+
+describe("BerthWise planning contracts", () => {
+  const vessel = {
+    name: "SYN Altair",
+    lengthM: 280,
+    draftM: 12,
+    eta: "2026-10-20T06:00:00Z",
+    etd: "2026-10-20T16:00:00Z",
+    grainCapable: false,
+  };
+  const berth = {
+    name: "SYN Quay A",
+    lengthM: 350,
+    maxDraftM: 15,
+    grainCapable: true,
+  };
+  const valid = {
+    scenarioName: "SYNTHETIC — test",
+    vessels: [vessel],
+    berths: [berth],
+    solver: "exact",
+  };
+
+  it("accepts a valid plan input and defaults the seed", () => {
+    const r = CreatePlanInput.safeParse(valid);
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.seed).toBe(42);
+  });
+
+  it("rejects empty vessels and empty berths", () => {
+    expect(CreatePlanInput.safeParse({ ...valid, vessels: [] }).success).toBe(false);
+    expect(CreatePlanInput.safeParse({ ...valid, berths: [] }).success).toBe(false);
+  });
+
+  it("rejects more than 20 vessels / 10 berths", () => {
+    const manyVessels = Array.from({ length: 21 }, (_, i) => ({
+      ...vessel,
+      name: `SYN V${i}`,
+    }));
+    expect(
+      CreatePlanInput.safeParse({ ...valid, vessels: manyVessels }).success
+    ).toBe(false);
+    const manyBerths = Array.from({ length: 11 }, (_, i) => ({
+      ...berth,
+      name: `SYN Q${i}`,
+    }));
+    expect(CreatePlanInput.safeParse({ ...valid, berths: manyBerths }).success).toBe(
+      false
+    );
+  });
+
+  it("rejects bad datetimes (non-UTC, invalid calendar, etd before eta)", () => {
+    expect(
+      CreatePlanInput.safeParse({
+        ...valid,
+        vessels: [{ ...vessel, eta: "2026-10-20 06:00:00" }],
+      }).success
+    ).toBe(false);
+    expect(
+      CreatePlanInput.safeParse({
+        ...valid,
+        vessels: [{ ...vessel, eta: "2026-13-40T99:00:00Z" }],
+      }).success
+    ).toBe(false);
+    expect(
+      CreatePlanInput.safeParse({
+        ...valid,
+        vessels: [{ ...vessel, etd: "2026-10-20T05:00:00Z" }],
+      }).success
+    ).toBe(false);
+  });
+
+  it("rejects unknown solvers — alns is never a choice", () => {
+    expect(CreatePlanInput.safeParse({ ...valid, solver: "alns" }).success).toBe(false);
+    expect(CreatePlanInput.safeParse({ ...valid, solver: "nope" }).success).toBe(false);
+    expect(SolverChoice.options).toEqual([
+      "exact",
+      "greedy",
+      "annealing",
+      "tabu",
+      "genetic",
+    ]);
+  });
+
+  it("rejects unknown fields (strict)", () => {
+    expect(CreatePlanInput.safeParse({ ...valid, hackerField: 1 }).success).toBe(false);
+  });
+
+  it("rejects non-positive dimensions", () => {
+    expect(
+      CreatePlanInput.safeParse({
+        ...valid,
+        vessels: [{ ...vessel, lengthM: 0 }],
+      }).success
+    ).toBe(false);
+    expect(
+      CreatePlanInput.safeParse({
+        ...valid,
+        berths: [{ ...berth, maxDraftM: -1 }],
+      }).success
+    ).toBe(false);
+  });
+
+  it("adds the planning.run_created audit action", () => {
+    expect(AuditAction.options).toContain("planning.run_created");
   });
 });
