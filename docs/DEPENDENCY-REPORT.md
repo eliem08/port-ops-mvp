@@ -17,7 +17,7 @@ failed `npm audit --audit-level=high` with 18 findings (5 moderate, 10 high, 3 c
 |---------|--------|-------|------|-----------|
 | `next` | 15.5.4 | **15.5.28** | prod | Patch-line upgrade; fixes high/critical Next.js advisories. React 19 compatible. No breaking changes. OSV: clean. |
 | `eslint-config-next` | 15.5.4 | **15.5.28** | dev | Must match `next` version. |
-| `postcss` | 8.5.30 | **8.5.31** | dev | Patch upgrade. OSV: clean. Next.js nested copy stays at 8.4.31 per Next's own pin. |
+| `postcss` | 8.5.30 (top) / 8.4.31 (nested under next) | **8.5.31 everywhere** (npm override) | dev | Top-level patch upgrade + override forces nested copy to 8.5.31. Fixes HIGH GHSA-gg55-p6h8-882q (sourceMappingURL). OSV: clean. |
 | `sharp` | 0.34.5 (transitive via next) | **0.35.5** (direct) | prod | Within next's allowed range (`^0.34.3 \|\| ^0.35.5`). OSV: clean. |
 | `vitest` | ^2.0.0 (2.1.9 installed) | **^3.2.7** | dev | Major upgrade; see below. OSV: 1 moderate advisory (GHSA-82fw-gwwq-j7x9), below audit threshold. |
 | `vite` (via vitest) | 5.4.21 | **7.3.7** | dev | Pulled by vitest 3. OSV: clean. |
@@ -43,6 +43,27 @@ force. Revisit when vitest pins tinypool 2.x natively. All 263 tests pass with t
 override, confirming runtime compatibility.
 
 ## Remaining advisories (documented, not silenced)
+
+## postcss nested override (completed)
+
+CI `npm audit` flagged HIGH advisories on the **nested** `postcss@8.4.31` under `node_modules/next/node_modules/postcss`:
+- GHSA-gg55-p6h8-882q — incomplete fix; attacker-controlled `sourceMappingURL` reads arbitrary files
+- Path Traversal in Previous Source Map Auto-Loading (`sourceMappingURL`)
+
+`npm audit fix --force` proposed `next@16.4.2` (breaking major upgrade) — **rejected**.
+Fix: npm `overrides` entry `"postcss": "^8.5.31"` forces the nested copy to dedupe to the
+already-clean top-level 8.5.31. Verified via `npm ls postcss` (all instances 8.5.31) and OSV
+(0 advisories for postcss@8.5.31).
+
+## Accepted risk: braces@3.0.3 — GHSA-vfj7-8cjw-p6xm (HIGH)
+
+- **Advisory:** braces vulnerable to stack-exhaustion DoS through deeply nested brace patterns.
+- **Status:** No patched version exists (3.0.3 is latest; OSV shows no `fixed` event).
+- **Reachability:** braces is a transitive dev-only dependency via micromatch (glob matching in
+  build tooling — tailwindcss/postcss pipeline and eslint). It is **not** in the production
+  runtime bundle and never processes attacker-controlled input in this application.
+- **Mitigation:** No action possible via upgrade. Re-evaluate if a patched version is released.
+- **Owner/action:** Revisit on future dependency updates; monitor GHSA-vfj7-8cjw-p6xm.
 
 ### vitest@3.2.7 — GHSA-82fw-gwwq-j7x9 (moderate)
 - **Advisory:** Path traversal / arbitrary file read via @vitest/mocker redirect mock.

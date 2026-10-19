@@ -39,6 +39,7 @@
     "npm": ">=10"
   },
   "overrides": {
-    "tinypool": "^2.1.2"
+    "tinypool": "^2.1.2",
+    "postcss": "^8.5.31"
   }
 }
