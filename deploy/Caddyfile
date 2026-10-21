@@ -1,0 +1,11 @@
+# TLS-terminating reverse proxy (docker compose --profile tls up -d).
+# Caddy obtains and renews certificates automatically for APP_DOMAIN.
+{$APP_DOMAIN} {
+	encode zstd gzip
+	# Prometheus metrics are for the internal network only.
+	@metrics path /api/metrics
+	respond @metrics 404
+	reverse_proxy app:3000 {
+		header_up X-Forwarded-Host {host}
+	}
+}

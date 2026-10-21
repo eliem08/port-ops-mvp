@@ -1,0 +1,51 @@
+# Single-host deployment.
+#   cp .env.example .env   # then set AUTH_SECRET, DATA_ENCRYPTION_KEY, BOOTSTRAP_ADMIN_* …
+#   docker compose up -d                       # app on http://localhost:3000
+#   docker compose --profile tls up -d         # + Caddy with automatic HTTPS (set APP_DOMAIN)
+# Data (database + backups) lives in the "portops-data" volume.
+
+services:
+  app:
+    build:
+      context: .
+      args:
+        APP_VERSION: ${APP_VERSION:-0.1.0}
+        GIT_SHA: ${GIT_SHA:-local}
+    image: port-ops:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: file:/data/portops.db
+      BACKUP_DIR: /data/backups
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+    volumes:
+      - portops-data:/data
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/.next/cache
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+
+  caddy:
+    profiles: [tls]
+    image: caddy:2.8
+    restart: unless-stopped
+    depends_on: [app]
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  portops-data:
+  caddy-data:
+  caddy-config:

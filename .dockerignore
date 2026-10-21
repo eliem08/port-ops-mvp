@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.github
+*.db
+*.db-*
+backups
+.env
+.env.*
+!.env.example
+*.bundle
+tsconfig.tsbuildinfo
+coverage
+docs

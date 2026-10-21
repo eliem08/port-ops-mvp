@@ -44,6 +44,46 @@ jobs:
           npm run db:seed
           rm -f dev.db dev.db-shm dev.db-wal
 
+  docker-image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build --build-arg GIT_SHA=${{ github.sha }} -t port-ops:ci .
+
+      - name: Container smoke test
+        run: |
+          set -euo pipefail
+          SECRET=$(openssl rand -hex 32)
+          docker run -d --name portops -p 3000:3000 \
+            -e AUTH_SECRET="$SECRET" \
+            -e BOOTSTRAP_ADMIN_EMAIL=ci-admin@example.com \
+            -e BOOTSTRAP_ADMIN_PASSWORD=ci-bootstrap-passphrase-1 \
+            -e METRICS_TOKEN=ci-metrics \
+            port-ops:ci
+          for i in $(seq 1 60); do
+            curl -fsS http://localhost:3000/api/ready && break
+            sleep 1
+          done
+          curl -fsS http://localhost:3000/api/ready | grep -q '"ready"'
+          # Bootstrap admin can sign in (password change is then enforced).
+          curl -fsS -H 'content-type: application/json' \
+            -d '{"email":"ci-admin@example.com","password":"ci-bootstrap-passphrase-1"}' \
+            http://localhost:3000/api/auth/login | grep -q '"ok":true'
+          # Cross-site POST is refused.
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'origin: https://evil.example' \
+            -H 'content-type: application/json' -d '{}' http://localhost:3000/api/auth/login)" = 403
+          curl -fsS -H 'authorization: Bearer ci-metrics' http://localhost:3000/api/metrics | grep -q portops_schema_version
+          # Runs as the unprivileged user.
+          test "$(docker exec portops id -u)" = 1001
+          docker inspect --format '{{.State.Health.Status}}' portops
+
+      - name: Container logs
+        if: always()
+        run: docker logs portops || true
+
   secret-scan:
     runs-on: ubuntu-24.04
     timeout-minutes: 10

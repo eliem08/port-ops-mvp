@@ -12,6 +12,8 @@ export async function register(): Promise<void> {
   getSecretBytes();
 
   const env = process.env;
+  // register() runs once per runtime (Node and edge); report from Node only.
+  if (env.NEXT_RUNTIME === "edge") return;
   const sso = Boolean(env.OIDC_ISSUER && env.OIDC_CLIENT_ID && env.OIDC_CLIENT_SECRET);
   console.info(
     JSON.stringify({
@@ -30,12 +32,13 @@ export async function register(): Promise<void> {
     })
   );
 
-  // Background audit shipping (Node runtime only — it needs SQLite).
-  if (env.NEXT_RUNTIME === "nodejs" && env.AUDIT_WEBHOOK_URL) {
-    const [{ startAuditForwarder }, { getDb }] = await Promise.all([
-      import("./lib/audit-forwarder"),
+  // Migrations, admin bootstrap, scheduled backups, audit shipping — Node
+  // runtime only (they need SQLite), and never during `next build`.
+  if (env.NEXT_RUNTIME === "nodejs" && env.NEXT_PHASE !== "phase-production-build") {
+    const [{ runStartupTasks }, { getDb }] = await Promise.all([
+      import("./lib/startup"),
       import("./lib/db/client"),
     ]);
-    startAuditForwarder(getDb);
+    runStartupTasks(getDb);
   }
 }

@@ -29,3 +29,7 @@ npm-debug.log*
 # OS
 .DS_Store
 .next/
+
+# database backups
+backups/
+*.db.pre-restore-*

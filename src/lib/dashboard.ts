@@ -151,6 +151,7 @@ export function auditActionLabel(action: string): string {
     "settings.changed": "Settings changed",
     "import.completed": "Data imported",
     "audit.exported": "Audit exported",
+    "backup.created": "Backup created",
   };
   return (labels as Record<string, string>)[action] ?? action;
 }

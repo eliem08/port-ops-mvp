@@ -12,7 +12,9 @@
     "db:migrate": "tsx src/lib/db/migrate.ts",
     "db:seed": "tsx src/lib/db/seed.ts",
     "db:reset": "tsx src/lib/db/reset.ts",
-    "user:create-admin": "tsx src/lib/db/create-admin.ts"
+    "user:create-admin": "tsx src/lib/db/create-admin.ts",
+    "db:backup": "tsx src/lib/db/backup-cli.ts",
+    "db:restore": "tsx src/lib/db/backup-cli.ts restore"
   },
   "dependencies": {
     "jose": "^6.0.0",

@@ -175,6 +175,7 @@ export const AuditAction = z.enum([
   "settings.changed",
   "import.completed",
   "audit.exported",
+  "backup.created",
 ]);
 export type AuditAction = z.infer<typeof AuditAction>;
 
