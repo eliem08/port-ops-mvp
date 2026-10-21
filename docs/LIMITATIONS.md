@@ -1,9 +1,9 @@
 # Port Operations Intelligence Platform — Limitations
 
-**Last verified:** 2026-10-18 (branch `feat/mvp-slice-1`).
+**Last verified:** 2026-10-21 (branch `feat/production-readiness`).
 **Policy:** limitations are stated plainly, never concealed, never "fixed" by
 inventing data or weakening claims. Each entry gives its honest status, the
-evidence, and what ilyass would need to do to resolve it.
+evidence, and what is needed to resolve it.
 
 ---
 
@@ -16,9 +16,12 @@ the demo database is synthetic. There is no ANP or Marsa Maroc operational data
 anywhere in this system, and none was used to build or validate it.
 
 **Evidence of honest labeling:**
-- Permanent `DEMO — SYNTHETIC DATA` banner in the app shell (`src/app/layout.tsx`).
-- Seed records tagged `[SYNTHETIC DEMO DATA]`; the seed script refuses to run
-  against a non-empty database without `--force`.
+- `DEMO — SYNTHETIC DATA` banner and per-page tags whenever the demo seed is
+  present in the database (`src/app/layout.tsx`, `src/lib/deployment.ts`) — and
+  never on a database that holds only real records.
+- Seed records tagged `[SYNTHETIC DEMO DATA]`; the seed is idempotent (stable
+  ids + `INSERT OR IGNORE`), so re-running it never duplicates records. Production
+  installations are not seeded at all.
 - The demo guide (`docs/DEMO-GUIDE.md`) opens with the synthetic-data disclaimer.
 
 **To resolve:** obtain a real operational dataset under a data-sharing agreement
@@ -29,41 +32,33 @@ backed by real data. Until then, every number the demo shows is illustrative.
 
 ---
 
-## #2 — Demo authentication, not a production identity provider
+## #2 — Authentication (formerly: demo identities, no passwords)
 
-**Status: HARDENED (as far as possible without a real IdP) — still DEMO.**
+**Status: RESOLVED — production authentication implemented and tested.**
 
-What was hardened in this pass:
-- **Session expiry:** 8-hour absolute timeout (JWT `exp` + cookie `maxAge`,
-  kept in sync via `SESSION_TTL_SECONDS` in `src/lib/auth.ts`).
-- **Cookie flags:** `httpOnly`, `SameSite=Lax`, `Secure` in production.
-- **Startup refusal:** `src/instrumentation.ts` runs at server boot and
-  `src/lib/auth-secret.ts` throws on every use when `NODE_ENV=production`
-  and `DEMO_AUTH_SECRET` is unset, a publicly known placeholder, or shorter
-  than 32 characters. The app **refuses to start** rather than serve forgeable
-  sessions. (The refusal is skipped during `next build`, which never serves
-  traffic.)
-- **Single source of truth:** the secret lives in `src/lib/auth-secret.ts`,
-  shared by `src/lib/auth.ts` and the edge `src/middleware.ts` — the previous
-  duplicated fallback string (a split-brain risk) is gone.
-- **Audit:** logins and logins are written to the append-only audit trail
-  (`auth.login` / `auth.logout`).
-- **Rate limiting:** login endpoint throttled (10/min/IP); scan endpoint
-  throttled per user (60/min).
-- **Boot banner:** every server start prints the demo-auth limitations to the
-  log so no operator mistakes this for production auth.
+The passwordless demo identity picker has been replaced:
+- **Accounts:** email + scrypt password, password policy, lockout after
+  repeated failures, no account enumeration (`src/lib/accounts.ts`).
+- **MFA:** RFC 6238 TOTP with QR enrollment, mandatory per role
+  (`MFA_REQUIRED_ROLES`, default administrators); seeds encrypted at rest.
+- **SSO:** OpenID Connect (code + PKCE, JWKS-verified ID tokens, group → role
+  mapping) for the customer's identity provider (`src/lib/oidc.ts`).
+- **Sessions:** server-side and revocable (logout, admin sign-out, disable,
+  password/MFA reset take effect immediately).
+- **CSRF:** origin checks on every state-changing API request, in addition to
+  `SameSite=Lax`.
+- **Audit:** sign-ins, failures, lockouts, MFA and password changes, session
+  revocations and all account administration are recorded and can be shipped
+  to a SIEM.
 
-What is still missing (and why this remains DEMO):
-- Password hashing, MFA, account recovery, session revocation list.
-- Brute-force account lockout (rate limiting is not lockout).
-- Per-user secrets, secret rotation, vault-backed storage.
-- Audit shipping to a SIEM; anomaly alerts.
-- CSRF tokens (currently relying on `SameSite=Lax` + no state-changing GETs).
+**Evidence:** `src/app/api/auth/auth-routes.test.ts` (end-to-end flows),
+`src/lib/auth-primitives.test.ts` (RFC 6238 vectors, scrypt, sealing),
+`src/lib/oidc.test.ts` (signature/issuer/audience/nonce rejection, role
+mapping, provisioning), `src/middleware.test.ts` (CSRF). Details:
+`docs/SECURITY.md`.
 
-**To resolve:** integrate a real identity provider (OIDC/SAML — e.g., Keycloak,
-Authentik, or the customer's existing IdP) with MFA enforced; move sessions to
-server-side storage with revocation; put secrets in a vault with rotation.
-Nothing in the demo auth should be carried over except the role model.
+**Remaining (operator side):** run an external penetration test before
+internet exposure; keep secrets in a secret manager (see `docs/OPERATIONS.md`).
 
 ---
 
@@ -178,8 +173,8 @@ is explicitly out of scope.
 
 | # | Limitation | Status | Evidence |
 |---|---|---|---|
-| 1 | No real operational dataset | Inherent | `DEMO — SYNTHETIC DATA` banner; labeled seeds |
-| 2 | Demo auth, not a real IdP | Hardened (still demo) | 8h expiry; startup refusal; audit; rate limits |
+| 1 | No real operational dataset | Inherent (customer data required) | Labeled seed + conditional banner; CSV import pipeline ready for real data |
+| 2 | Authentication | **Resolved** | Passwords + lockout, TOTP MFA, OIDC SSO, revocable sessions, CSRF checks; auth test suites |
 | 3 | GateWatch payload-replay | Dissolved by construction | Server-side load by ID; replay tests green |
 | 4 | TAS non-atomic idempotency | Fixed | UNIQUE + `BEGIN IMMEDIATE`; atomicity tests green |
 | 5 | BerthWise optimization limits | Inherent | `provenOptimal` gating; 8-vessel ceiling; ALNS excluded |

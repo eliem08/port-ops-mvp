@@ -17,12 +17,13 @@ la démo.
 ```bash
 npm install
 npm run db:migrate   # crée le schéma
-npm run db:seed      # charge les données synthétiques + 5 utilisateurs démo
+npm run db:seed      # charge les données synthétiques + 5 comptes démo ; notez le mot de passe affiché
 npm run dev          # http://localhost:3000
 ```
 
 **Vérifications :**
-- La page de connexion affiche les cinq identités démo.
+- La page de connexion liste les cinq comptes démo ; connectez-vous, le tableau de bord affiche des chiffres.
+- Pour la démo, `MFA_REQUIRED_ROLES=""` dans `.env` évite l'enrôlement MFA du compte administrateur démo.
 - Le tableau de bord affiche des chiffres (données chargées).
 - Ouvrez un **second onglet** sur le tableau de bord, déjà connecté : c'est
   votre roue de secours si un écran se fige en direct.
@@ -32,17 +33,19 @@ npm run dev          # http://localhost:3000
 
 ## 1. Connexion et rôles (2 min)
 
-Connectez-vous avec **Omar (Opérateur)** pour le fil principal.
+Connectez-vous avec **operator@demo.portops.local** (Omar) pour le fil principal.
 
 Dites : *« La plateforme a cinq rôles : lecteur, opérateur, planificateur,
 superviseur, administrateur. »* Basculez 10 secondes sur **Yasmine (Lectrice)**
 pour montrer que les boutons d'action restent visibles mais que le serveur
 refuse les actions non autorisées — puis revenez sur Omar.
 
-**Phrase d'honnêteté (limite n° 2) :**
-*« Ce login est une maquette de démonstration — il n'y a pas de mots de
-passe. En production, le système utiliserait votre propre système
-d'identité ; seul le modèle de rôles serait conservé. »*
+**À dire :**
+*« Chaque utilisateur a un compte nominatif : mot de passe avec verrouillage,
+MFA par application d'authentification (obligatoire pour les administrateurs),
+ou votre propre authentification unique (Entra ID, Keycloak…) avec vos groupes
+associés à ces cinq rôles. Chaque connexion et chaque action est tracée dans
+le journal d'audit. »*
 
 ## 2. Cycle de vie d'un rendez-vous — TAS (3 min)
 

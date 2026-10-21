@@ -144,7 +144,7 @@ locked by `src/lib/actions-security.test.ts`.
 | `simulation_runs` | PortTwin runs (incl. bridge runs) | simulator pages, dashboard | **standalone** — no FK to appointments; the bridge is parametric (assumptions text only) |
 | `audit_events` | all modules | dashboard (recent tail) | cross-cutting: `(entity, entity_id)` indexes, no FKs |
 | `idempotency_keys` | appointments | appointments | replay guard for appointment creation |
-| `demo_users` | seed | everything (`created_by`, `actor_id`) | convention only, no FKs |
+| `users` (was `demo_users`, migration 002) | seed, admin UI, SSO provisioning | everything (`created_by`, `actor_id`), `sessions.user_id` (FK) | `sessions` has an FK; other references by convention |
 
 ## Missing links — NOT implemented (honest list, 2026-10-19)
 

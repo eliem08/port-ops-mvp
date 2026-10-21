@@ -36,8 +36,9 @@ change on every re-seed. Demo-driver names are tagged `[SYNTHETIC DEMO DATA]`.
 - **`calibrated = 0` always** on `simulation_runs`; `proven_optimal = 1` only
   when the exact solver ran (see schema comments in
   `src/lib/db/migrations.ts`).
-- **`.env.example` is explicit:** `DEMO_AUTH_SECRET` is labeled demo-only and
-  must be a random 256-bit value from a secret manager in any real deployment.
+- **`.env.example` is explicit:** `AUTH_SECRET` (and `DATA_ENCRYPTION_KEY`) must be
+  random 256-bit values from a secret manager in any real deployment; the server
+  refuses to start in production otherwise. Backup/restore: see docs/OPERATIONS.md §5.
 
 ## 3. Troubleshooting
 
@@ -76,10 +77,10 @@ Copy `.env.example` → `.env` and set:
 
 ```
 DATABASE_URL=file:./dev.db
-DEMO_AUTH_SECRET=<random-64-hex-chars>
+AUTH_SECRET=<random-64-hex-chars>
 ```
 
-- "Demo login required" on every page → cookie secret changed mid-session;
+- "Sign-in required" on every page → cookie secret changed mid-session;
   log out and back in (sessions are stateless JWTs signed with the secret).
 - The app falls back to a hard-coded default secret if `.env` is missing —
   fine for a local demo, **unacceptable** anywhere else.

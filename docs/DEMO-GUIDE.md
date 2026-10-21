@@ -12,15 +12,17 @@
 ```bash
 npm install
 npm run db:migrate   # creates schema
-npm run db:seed      # loads synthetic demo data + 5 demo users
+npm run db:seed      # loads synthetic demo data + 5 demo accounts; note the printed password
 npm run dev          # http://localhost:3000
 ```
 
-Confirm: login page lists five identities; dashboard shows numbers.
+Confirm: the login page lists the five demo account emails; sign in and the dashboard shows numbers.
+For demos, set `MFA_REQUIRED_ROLES=""` in `.env` so the demo administrator is not asked to enroll MFA
+(or keep the default to *show* MFA enrollment — it takes 30 seconds with a phone).
 
 ## 1. Login and roles (2 min)
 
-Log in as **Omar (Operator)** for the main flow. Show the role model briefly:
+Sign in as **operator@demo.portops.local** (Omar) for the main flow. Show the role model briefly:
 
 | Identity | Role | Sees / can do |
 |---|---|---|
@@ -30,10 +32,12 @@ Log in as **Omar (Operator)** for the main flow. Show the role model briefly:
 | Karim | Supervisor (`supervisor`) | + approve/reject review items |
 | Admin (Demo) | Administrator | highest rank |
 
-"What to say (limitation #2): *This login is a demo stand-in — there are no
-passwords, and production would use your real identity system.*"
+"What to say: *Each person has an individual account — password with lockout,
+authenticator-app MFA (mandatory for administrators), or your own single sign-on
+(Entra ID, Keycloak, Okta…) with your groups mapped to these five roles. Every
+sign-in and every action lands in the audit trail.*"
 
-Tip: log in as Yasmine for 10 seconds to show the role model — the UI renders
+Tip: sign in as viewer@demo.portops.local (Yasmine) for 10 seconds to show the role model — the UI renders
 all action buttons, but the server rejects unauthorized actions with 403.
 Enforcement is server-side; the UI does not hide buttons (the one exception:
 `/gate/reviews` hides the decision buttons from non-supervisor roles). Then
