@@ -72,10 +72,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: npm audit (high+)
+      - name: npm audit, production deps (high+, no exceptions)
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: npm audit, full tree (high+)
         # Fails the job on high or critical vulnerabilities.
         # If an advisory has no compatible fix, document it in
         # docs/DEPENDENCY-REPORT.md and add a targeted exception
-        # here with a link to the documentation — never silence
+        # (by advisory ID) to audit-ci.jsonc — never silence
         # the entire audit.
-        run: npm audit --audit-level=high
+        run: npx -y audit-ci@7.1.0 --config audit-ci.jsonc

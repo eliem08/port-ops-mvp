@@ -1,4 +1,4 @@
-# Dependency Vulnerability Report — 2026-10-19 (updated: vitest 3 upgrade)
+# Dependency Vulnerability Report — 2026-10-19 (updated: vitest 5 upgrade, audit-ci exception)
 
 **Branch:** `fix/dependency-audit` · **Base:** `main` @ d357bd9
 **Trigger:** CI run [#39176377066](https://github.com/eliem08/port-ops-mvp/actions/runs/39176377066)
@@ -19,10 +19,17 @@ failed `npm audit --audit-level=high` with 18 findings (5 moderate, 10 high, 3 c
 | `eslint-config-next` | 15.5.4 | **15.5.28** | dev | Must match `next` version. |
 | `postcss` | 8.5.30 (top) / 8.4.31 (nested under next) | **8.5.31 everywhere** (npm override) | dev | Top-level patch upgrade + override forces nested copy to 8.5.31. Fixes HIGH GHSA-gg55-p6h8-882q (sourceMappingURL). OSV: clean. |
 | `sharp` | 0.34.5 (transitive via next) | **0.35.5** (direct) | prod | Within next's allowed range (`^0.34.3 \|\| ^0.35.5`). OSV: clean. |
-| `vitest` | ^2.0.0 (2.1.9 installed) | **^3.2.7** | dev | Major upgrade; see below. OSV: 1 moderate advisory (GHSA-82fw-gwwq-j7x9), below audit threshold. |
-| `vite` (via vitest) | 5.4.21 | **7.3.7** | dev | Pulled by vitest 3. OSV: clean. |
-| `esbuild` (via vite) | 0.21.5 | **0.28.2** | dev | Pulled by vitest 3. OSV: clean. Fixes GHSA-67mh-4wv8-2f99. |
-| `tinypool` (via vitest) | 1.1.1 | **2.2.0** (via npm overrides) | dev | Fixes CRITICAL RCEs GHSA-5gmw-xhrv-c9v3, GHSA-85c8-ppgw-ccpr. OSV: clean. See override rationale below. |
+| `vitest` | ^2.0.0 (2.1.9 installed) | **^5.0.5** | dev | Major upgrade (2 → 3 → 5); see below. Fixes moderate GHSA-82fw-gwwq-j7x9 (@vitest/mocker). |
+| `tinypool` (via vitest) | 1.1.1 | **removed** | dev | vitest 5 no longer depends on tinypool, so CRITICAL RCEs GHSA-5gmw-xhrv-c9v3 / GHSA-85c8-ppgw-ccpr are gone and the `tinypool` override was dropped. |
+
+## vitest 3 → 5 upgrade (completed)
+
+vitest 4.1.11+ (the first release fixing GHSA-82fw-gwwq-j7x9) cannot be installed with
+npm 10.9: its `@vitest/browser-webdriverio: ^4.1.11` peer range crashes arborist
+(`Cannot read properties of null (reading 'edgesOut')`), even from an empty lockfile.
+vitest 5.0.5 resolves cleanly, so the upgrade goes straight to 5. Node requirement
+(`^22.12 || ^24`) is satisfied by `.nvmrc` (24). No config or test changes were needed;
+all 263 tests pass.
 
 ## vitest 2 → 3 upgrade (completed)
 
@@ -33,16 +40,6 @@ Upgraded vitest@2.1.9 → 3.2.7. This was previously attempted and reverted due 
 **Resolution:** Added `testTimeout: 30000` to `vitest.config.ts`. The tests legitimately
 need the time (each solver carries a 2s budget by design); the timeout is a config
 issue, not a test weakness. No test assertions or solver budgets were changed.
-
-**tinypool override rationale:** vitest 3.2.7 still pins `tinypool: ^1.1.1`, which
-carries CRITICAL RCE advisories. tinypool 2.x is API-compatible for vitest's usage
-(verified: identical `Tinypool` class and `workerId` exports; v2 adds `withNullPrototype`
-as part of the security fix). The `overrides` entry in package.json forces `^2.1.2`
-(resolved: 2.2.0). This is a security patch application, not an incompatible version
-force. Revisit when vitest pins tinypool 2.x natively. All 263 tests pass with the
-override, confirming runtime compatibility.
-
-## Remaining advisories (documented, not silenced)
 
 ## postcss nested override (completed)
 
@@ -63,15 +60,16 @@ already-clean top-level 8.5.31. Verified via `npm ls postcss` (all instances 8.5
   build tooling — tailwindcss/postcss pipeline and eslint). It is **not** in the production
   runtime bundle and never processes attacker-controlled input in this application.
 - **Mitigation:** No action possible via upgrade. Re-evaluate if a patched version is released.
+- **CI enforcement:** allowlisted by advisory ID only in `audit-ci.jsonc`; the full-tree audit
+  still fails on any other high/critical advisory. Production deps are audited separately
+  with no exceptions (`npm audit --omit=dev --audit-level=high` → 0 vulnerabilities).
 - **Owner/action:** Revisit on future dependency updates; monitor GHSA-vfj7-8cjw-p6xm.
 
-### vitest@3.2.7 — GHSA-82fw-gwwq-j7x9 (moderate)
-- **Advisory:** Path traversal / arbitrary file read via @vitest/mocker redirect mock.
-- **Severity:** GitHub-reviewed MODERATE (CVSS 3.1, AC:H). Below the `--audit-level=high` threshold; does not fail CI.
-- **Reachable:** Dev-only. Requires attacker control of test mock configuration. Test files are from the repo itself; CI runners are ephemeral.
-- **Fix available:** vitest 4.1.11 (major upgrade, out of scope for this fix).
-- **Mitigation:** Do not run tests with untrusted mock configurations. Re-evaluate on vitest 4.
-- **Owner/action:** Revisit with future vitest major upgrade.
+### postcss-selector-parser@6.1.4 — GHSA-rj75-hqrm-r3gf (moderate)
+- **Advisory:** Quadratic complexity in flat selector parsing (CPU exhaustion).
+- **Severity:** MODERATE, below the audit threshold; does not fail CI.
+- **Reachable:** Dev-only, via tailwindcss 3 (build time, repo-authored CSS only).
+- **Fix available:** tailwindcss 4 (breaking major migration, out of scope).
 
 ## Verification performed
 
@@ -83,7 +81,8 @@ already-clean top-level 8.5.31. Verified via `npm ls postcss` (all instances 8.5
 | `npm run test` | ✅ 263/263 (19 files) |
 | `npm run build` | ✅ succeeds |
 | `npm run db:migrate` + `db:seed` (clean DB) | ✅ 5 users, 20 appts, 10 events, 3 reviews, 5 plans, 5 sims, 69 audits |
-| `npm audit` | ⚠️ Cannot run locally (proxy 403) — **must be confirmed from CI** |
+| `npm audit --omit=dev --audit-level=high` | ✅ 0 vulnerabilities |
+| `npx audit-ci --config audit-ci.jsonc` | ✅ passes (only GHSA-vfj7-8cjw-p6xm allowlisted) |
 
 ## Secret hygiene (rechecked)
 - `.env` remains untracked and ignored (verified via `git ls-files`).

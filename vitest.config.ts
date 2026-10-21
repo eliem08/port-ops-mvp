@@ -6,7 +6,7 @@ export default defineConfig({
     environment: "node",
     include: ["src/**/*.test.ts"],
     // Heuristic-solver tests legitimately run multiple solvers sequentially
-    // (each with its own time budget); 30s accommodates them under vitest 3's
+    // (each with its own time budget); 30s accommodates them under vitest's
     // worker model without weakening any test or solver budget.
     testTimeout: 30000,
   },
