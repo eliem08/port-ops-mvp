@@ -1,0 +1,14 @@
+{
+  "$schema": "https://github.com/IBM/audit-ci/raw/main/docs/schema.json",
+  // Fail on high or critical advisories.
+  "high": true,
+  // Targeted exceptions only — each must be documented in
+  // docs/DEPENDENCY-REPORT.md ("Accepted risk" sections).
+  "allowlist": [
+    // braces: stack-exhaustion DoS. No patched release exists (affects all
+    // versions). Reached only via dev/build tooling (tailwindcss 3,
+    // eslint-config-next → fast-glob → micromatch); not in the production
+    // dependency tree (`npm audit --omit=dev` is clean).
+    "GHSA-vfj7-8cjw-p6xm"
+  ]
+}
