@@ -109,4 +109,40 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 );
 `;
 
-export const MIGRATIONS = [{ version: 1, sql: MIGRATION_001 }];
+// Migration 002 — production authentication.
+// demo_users becomes users (existing rows and ids are preserved) and gains
+// credentials, lockout, MFA and SSO columns. Sessions move server-side so
+// they can be listed and revoked; the cookie JWT only carries the session id.
+export const MIGRATION_002 = `
+ALTER TABLE demo_users RENAME TO users;
+ALTER TABLE users ADD COLUMN email TEXT;
+ALTER TABLE users ADD COLUMN password_hash TEXT;            -- scrypt, see src/lib/password.ts
+ALTER TABLE users ADD COLUMN failed_logins INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN locked_until TEXT;             -- ISO UTC; NULL = not locked
+ALTER TABLE users ADD COLUMN mfa_secret TEXT;               -- base32 TOTP secret
+ALTER TABLE users ADD COLUMN mfa_enabled INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN password_changed_at TEXT;
+ALTER TABLE users ADD COLUMN last_login_at TEXT;
+ALTER TABLE users ADD COLUMN external_subject TEXT;         -- OIDC "iss|sub" for SSO users
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_external ON users(external_subject) WHERE external_subject IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS sessions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  auth_method TEXT NOT NULL,                  -- password | password+totp | oidc
+  ip TEXT,
+  user_agent TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  expires_at TEXT NOT NULL,                   -- ISO UTC
+  revoked_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+`;
+
+export const MIGRATIONS = [
+  { version: 1, sql: MIGRATION_001 },
+  { version: 2, sql: MIGRATION_002 },
+];

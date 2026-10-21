@@ -97,14 +97,58 @@ export const VerificationRecord = z.object({
 
 // ── Auth ─────────────────────────────────────────────────────────────────
 
-export const DemoRole = z.enum([
+export const Role = z.enum([
   "operations_viewer",
   "operations_operator",
   "planner",
   "supervisor",
   "administrator",
 ]);
-export type DemoRole = z.infer<typeof DemoRole>;
+export type Role = z.infer<typeof Role>;
+/** @deprecated legacy name from the demo slice — use Role. */
+export const DemoRole = Role;
+export type DemoRole = Role;
+
+// ── Users & authentication ───────────────────────────────────────────────
+
+export const Email = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(254)
+  .regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "must be a valid email address");
+
+export const LoginInput = z
+  .object({ email: Email, password: z.string().min(1).max(256) })
+  .strict();
+
+export const MfaVerifyInput = z
+  .object({ challenge: z.string().min(1).max(4096), code: z.string().min(6).max(10) })
+  .strict();
+
+export const CreateUserInput = z
+  .object({
+    email: Email,
+    label: z.string().trim().min(1).max(100),
+    role: Role,
+    password: z.string().min(1).max(256),
+  })
+  .strict();
+
+export const UpdateUserInput = z
+  .object({
+    label: z.string().trim().min(1).max(100).optional(),
+    role: Role.optional(),
+    disabled: z.boolean().optional(),
+    unlock: z.literal(true).optional(),
+    resetPassword: z.string().min(1).max(256).optional(),
+    resetMfa: z.literal(true).optional(),
+  })
+  .strict();
+
+export const ChangePasswordInput = z
+  .object({ currentPassword: z.string().max(256), newPassword: z.string().min(1).max(256) })
+  .strict();
 
 // ── Audit ────────────────────────────────────────────────────────────────
 
@@ -120,6 +164,17 @@ export const AuditAction = z.enum([
   "simulation.run_created",
   "auth.login",
   "auth.logout",
+  "auth.login_failed",
+  "auth.account_locked",
+  "auth.password_changed",
+  "auth.mfa_enabled",
+  "auth.mfa_disabled",
+  "auth.session_revoked",
+  "user.created",
+  "user.updated",
+  "settings.changed",
+  "import.completed",
+  "audit.exported",
 ]);
 export type AuditAction = z.infer<typeof AuditAction>;
 

@@ -21,7 +21,7 @@
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { DatabaseSync } from "node:sqlite";
-import { SignJWT } from "jose";
+import { signTestSession, SESSION_COOKIE } from "@/test-utils/sessions";
 import { NextRequest } from "next/server";
 import { freshTestDb, postJson } from "@/test-utils/route-harness";
 import { MAX_BODY_BYTES } from "@/lib/route-helpers";
@@ -64,7 +64,7 @@ import { POST as decideReview } from "@/app/api/gate/reviews/[id]/decide/route";
 // auth.ts falls back to this secret in tests (vitest does not load .env).
 const FALLBACK_SECRET = new TextEncoder().encode("dev-only-change-me-in-production");
 const WRONG_SECRET = new TextEncoder().encode("attacker-controlled-secret");
-const COOKIE_NAME = "portops_demo_session";
+const COOKIE_NAME = SESSION_COOKIE;
 
 async function signSession(
   role: string,
@@ -72,11 +72,7 @@ async function signSession(
   secret: Uint8Array = FALLBACK_SECRET,
   exp = "2h"
 ): Promise<string> {
-  return await new SignJWT({ userId, label: "Test User", role })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime(exp)
-    .sign(secret);
+  return await signTestSession(mockState.db!, role, userId, { secret, exp });
 }
 
 async function loginAs(role: string, userId = "u-test"): Promise<void> {
@@ -341,11 +337,13 @@ describe("token-bucket rate limiter (unit)", () => {
 describe("rate limiting on routes", () => {
   it("POST /api/auth/login: 10 attempts allowed, 11th → 429 with Retry-After", async () => {
     for (let i = 0; i < 10; i++) {
-      const res = await postLogin(postJson("/api/auth/login", { userId: "no-such-user" }));
-      expect(res.status).toBe(401); // unknown demo user, but not rate limited
+      const res = await postLogin(
+        postJson("/api/auth/login", { email: "nobody@example.com", password: "wrong-password" })
+      );
+      expect(res.status).toBe(401); // unknown account, but not rate limited
     }
     const limited = await postLogin(
-      postJson("/api/auth/login", { userId: "no-such-user" })
+      postJson("/api/auth/login", { email: "nobody@example.com", password: "wrong-password" })
     );
     expect(limited.status).toBe(429);
     expect((await limited.json()).error.code).toBe("rate_limited");

@@ -11,7 +11,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { randomUUID } from "node:crypto";
 import { getDb } from "@/lib/db/client";
-import { getSession, type DemoSession } from "@/lib/auth";
+import { getSession, hasRole, type DemoSession } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import {
   CreateAppointmentInput,
@@ -27,18 +27,13 @@ import {
 } from "@/lib/simulation";
 import { scanRateLimiter } from "@/lib/rate-limit";
 
-const ROLE_RANK: Record<DemoRole, number> = {
-  operations_viewer: 0,
-  operations_operator: 1,
-  planner: 1,
-  supervisor: 2,
-  administrator: 3,
-};
-
 async function requireRole(minRole: DemoRole): Promise<DemoSession> {
   const session = await getSession();
-  if (!session) throw new Error("unauthenticated: demo login required");
-  if (ROLE_RANK[session.role] < ROLE_RANK[minRole]) {
+  if (!session) throw new Error("unauthenticated: sign-in required");
+  if (session.restricted) {
+    throw new Error("forbidden: finish account setup (password change or MFA enrollment) first");
+  }
+  if (!hasRole(session.role, minRole)) {
     throw new Error(
       `forbidden: role '${session.role}' cannot perform this action (requires '${minRole}')`
     );

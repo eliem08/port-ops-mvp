@@ -14,7 +14,7 @@
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { DatabaseSync } from "node:sqlite";
-import { SignJWT } from "jose";
+import { signTestSession, SESSION_COOKIE } from "@/test-utils/sessions";
 import { freshTestDb, postJson } from "@/test-utils/route-harness";
 import { loginRateLimiter, scanRateLimiter } from "@/lib/rate-limit";
 import { createAppointment, setAppointmentStatus, getAppointment } from "@/lib/appointments";
@@ -43,15 +43,10 @@ vi.mock("next/headers", () => ({
 import { POST as postAppointments } from "@/app/api/appointments/route";
 import { POST as postScans } from "@/app/api/gate/scans/route";
 
-const FALLBACK_SECRET = new TextEncoder().encode("dev-only-change-me-in-production");
-const COOKIE_NAME = "portops_demo_session";
+const COOKIE_NAME = SESSION_COOKIE;
 
 async function signSession(role: string, userId = "u-test"): Promise<string> {
-  return await new SignJWT({ userId, label: "Test User", role })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime("2h")
-    .sign(FALLBACK_SECRET);
+  return await signTestSession(mockState.db!, role, userId);
 }
 
 async function loginAs(role: string, userId = "u-test"): Promise<void> {
@@ -178,14 +173,16 @@ describe("limitation #4 — atomic idempotency (exactly one row per key)", () =>
     const { tmpdir } = await import("node:os");
     const file = join(mkdtempSync(join(tmpdir(), "idem-")), "t.db");
 
-    const openMigrated = () => {
+    // Migrate once (as npm run db:migrate would); the second connection
+    // just opens the already-migrated file.
+    const open = (migrate: boolean) => {
       const c = new sqlite.DatabaseSync(file);
       c.exec("PRAGMA foreign_keys = ON;");
-      for (const m of MIGRATIONS) c.exec(m.sql);
+      if (migrate) for (const m of MIGRATIONS) c.exec(m.sql);
       return c;
     };
-    const connA = openMigrated();
-    const connB = openMigrated();
+    const connA = open(true);
+    const connB = open(false);
     try {
       connA.exec("BEGIN IMMEDIATE");
       const claimA = connA

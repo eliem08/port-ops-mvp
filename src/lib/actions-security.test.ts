@@ -22,7 +22,7 @@
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { DatabaseSync } from "node:sqlite";
-import { SignJWT } from "jose";
+import { signTestSession, SESSION_COOKIE } from "@/test-utils/sessions";
 import { randomUUID } from "node:crypto";
 import { freshTestDb } from "@/test-utils/route-harness";
 import { scanRateLimiter } from "@/lib/rate-limit";
@@ -60,15 +60,10 @@ const {
 } = await import("@/lib/demo-workflow");
 const { getAppointment } = await import("@/lib/appointments");
 
-const FALLBACK_SECRET = new TextEncoder().encode("dev-only-change-me-in-production");
-const COOKIE_NAME = "portops_demo_session";
+const COOKIE_NAME = SESSION_COOKIE;
 
 async function signSession(role: string, userId: string): Promise<string> {
-  return await new SignJWT({ userId, label: "Test User", role })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime("2h")
-    .sign(FALLBACK_SECRET);
+  return await signTestSession(mockState.db!, role, userId);
 }
 
 async function loginAs(role: string, userId: string): Promise<void> {

@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { DatabaseSync } from "node:sqlite";
 import { jsonError } from "./auth";
+import { DomainError } from "./errors";
 
 export const MAX_BODY_BYTES = 1024 * 1024; // 1MB
 
@@ -39,6 +40,8 @@ export async function readJsonLimited(req: NextRequest): Promise<unknown> {
  */
 export function handleRouteError(err: unknown): Response {
   if (err instanceof Response) return err;
+  // Expected business-rule failures carry their own status and safe message.
+  if (err instanceof DomainError) return jsonError(err.status, err.code, err.message);
   console.error("[api] unhandled error:", err);
   return jsonError(500, "internal_error", "An unexpected error occurred.");
 }

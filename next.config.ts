@@ -1,17 +1,17 @@
 import type { NextConfig } from "next";
 
-// Baseline security headers for the demo. CSP is deliberately pragmatic
-// rather than locked-down: Next.js dev/HMR needs 'unsafe-eval', and the app
-// router inlines scripts/styles, so a strict nonce-based policy would break
-// the framework. This blocks clickjacking (DENY + frame-ancestors 'none'),
-// MIME sniffing, and referrer leakage — good enough for a demo, NOT a
-// hardened production policy.
+const isProd = process.env.NODE_ENV === "production";
+
+// Security headers. 'unsafe-eval' is only needed by Next.js dev/HMR and is
+// dropped in production builds; the app router still inlines bootstrap
+// scripts/styles, hence 'unsafe-inline'. HSTS is sent in production only
+// (it must never be served from a plain-http dev server).
 const securityHeaders = [
   {
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      `script-src 'self' 'unsafe-inline'${isProd ? "" : " 'unsafe-eval'"}`,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob:",
       "font-src 'self' data:",
@@ -19,6 +19,7 @@ const securityHeaders = [
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
+      "object-src 'none'",
     ].join("; "),
   },
   { key: "X-Frame-Options", value: "DENY" },
@@ -28,18 +29,17 @@ const securityHeaders = [
     key: "Permissions-Policy",
     value: "camera=(), microphone=(), geolocation=()",
   },
+  ...(isProd ? [{ key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" }] : []),
 ];
 
 const nextConfig: NextConfig = {
-  // better-sqlite3 is a native module — keep it server-side only
-  serverExternalPackages: ["better-sqlite3"],
-  // NOTE: src/instrumentation.ts (startup hook: production secret check +
-  // demo-auth banner) is auto-detected by Next.js 15 — no config flag needed.
+  // Self-contained server bundle for the Docker image (see Dockerfile).
+  output: "standalone",
+  poweredByHeader: false,
+  // src/instrumentation.ts (startup checks) is auto-detected by Next.js 15.
   async headers() {
     return [
       {
-        // Pages and API routes. (Also matches _next/static immutable assets;
-        // harmless there.)
         source: "/:path*",
         headers: securityHeaders,
       },

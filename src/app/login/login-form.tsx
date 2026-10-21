@@ -1,58 +1,115 @@
 "use client";
 
-// Demo identity picker: one click per role, POSTs { userId } to /api/auth/login.
+// Email/password sign-in with an optional second step for authenticator codes.
 
 import { useState } from "react";
-import type { DemoUserInfo } from "@/lib/demo-users";
 
-export function LoginForm({ users }: { users: DemoUserInfo[] }) {
+const INPUT =
+  "mt-1 block w-full rounded border border-line bg-white px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none";
+
+export function LoginForm({ next }: { next: string }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [challenge, setChallenge] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  async function login(userId: string) {
-    setBusyId(userId);
+  async function post(url: string, body: unknown) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.error?.message ?? `Sign-in failed (${res.status})`);
+    return data;
+  }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ userId }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error?.message ?? `Login failed (${res.status})`);
+      if (challenge) {
+        await post("/api/auth/mfa", { challenge, code: code.trim() });
+      } else {
+        const data = await post("/api/auth/login", { email, password });
+        if (data?.mfaRequired) {
+          setChallenge(data.challenge);
+          setBusy(false);
+          return;
+        }
       }
-      window.location.href = "/";
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Login failed.");
-      setBusyId(null);
+      window.location.href = next;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sign-in failed.");
+      if (challenge && err instanceof Error && /expired/i.test(err.message)) {
+        setChallenge(null);
+        setCode("");
+      }
+      setBusy(false);
     }
   }
 
   return (
-    <div className="space-y-3">
+    <form onSubmit={submit} className="space-y-4" noValidate>
       {error && (
         <div role="alert" className="rounded border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-danger">
           {error}
         </div>
       )}
-      {users.map((u) => (
-        <button
-          key={u.id}
-          type="button"
-          onClick={() => login(u.id)}
-          disabled={busyId !== null}
-          className="flex w-full items-center justify-between rounded border border-line bg-white px-4 py-3 text-left hover:border-accent disabled:opacity-50"
-        >
-          <span>
-            <span className="block text-sm font-medium text-ink">{u.label}</span>
-            <span className="block font-mono text-xs text-muted">{u.id}</span>
+      {challenge ? (
+        <label className="block text-sm font-medium text-ink">
+          Authentication code
+          <input
+            className={`${INPUT} font-mono tracking-widest`}
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            autoFocus
+            maxLength={10}
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            required
+          />
+          <span className="mt-1 block text-xs font-normal text-muted">
+            Enter the 6-digit code from your authenticator app.
           </span>
-          <span className="rounded border border-line bg-paper px-2 py-1 text-xs text-slate2">
-            {busyId === u.id ? "Signing in…" : u.role}
-          </span>
-        </button>
-      ))}
-    </div>
+        </label>
+      ) : (
+        <>
+          <label className="block text-sm font-medium text-ink">
+            Email
+            <input
+              className={INPUT}
+              type="email"
+              autoComplete="username"
+              autoFocus
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </label>
+          <label className="block text-sm font-medium text-ink">
+            Password
+            <input
+              className={INPUT}
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </label>
+        </>
+      )}
+      <button
+        type="submit"
+        disabled={busy}
+        className="w-full rounded bg-accent px-4 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+      >
+        {busy ? "Signing in…" : challenge ? "Verify" : "Sign in"}
+      </button>
+    </form>
   );
 }

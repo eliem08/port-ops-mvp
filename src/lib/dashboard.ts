@@ -138,8 +138,19 @@ export function auditActionLabel(action: string): string {
     "planning.run_created": "Planning run created",
     "simulation.created": "Simulation created",
     "simulation.run_created": "Simulation run created",
-    "auth.login": "Demo login",
-    "auth.logout": "Demo logout",
+    "auth.login": "Signed in",
+    "auth.logout": "Signed out",
+    "auth.login_failed": "Failed sign-in",
+    "auth.account_locked": "Account locked",
+    "auth.password_changed": "Password changed",
+    "auth.mfa_enabled": "MFA enabled",
+    "auth.mfa_disabled": "MFA disabled",
+    "auth.session_revoked": "Sessions revoked",
+    "user.created": "User created",
+    "user.updated": "User updated",
+    "settings.changed": "Settings changed",
+    "import.completed": "Data imported",
+    "audit.exported": "Audit exported",
   };
   return (labels as Record<string, string>)[action] ?? action;
 }

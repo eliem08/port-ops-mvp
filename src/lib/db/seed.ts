@@ -5,7 +5,9 @@
 //   ALLOW_DB_RESET=1 npm run db:reset && npm run db:migrate && npm run db:seed
 // ALL records are SYNTHETIC — no real port data, no real people,
 // no real vessel schedules, no real container numbers.
+import { randomBytes } from "node:crypto";
 import { getDb } from "./client";
+import { hashPassword, passwordPolicyError } from "../password";
 
 const SYNTHETIC_TAG = "[SYNTHETIC DEMO DATA]";
 
@@ -269,18 +271,29 @@ const SIMS: SimDef[] = [
 function main() {
   const db = getDb();
 
-  // Demo users — one per role
+  // Demo accounts — one per role, all sharing one password: SEED_PASSWORD
+  // when set, otherwise a random one printed below. Production refuses to
+  // seed without an explicit, policy-compliant SEED_PASSWORD.
   const users = [
-    { id: "demo-viewer", label: "Yasmine (Viewer)", role: "operations_viewer" },
-    { id: "demo-operator", label: "Omar (Operator)", role: "operations_operator" },
-    { id: "demo-planner", label: "Salma (Planner)", role: "planner" },
-    { id: "demo-supervisor", label: "Karim (Supervisor)", role: "supervisor" },
-    { id: "demo-admin", label: "Admin (Demo)", role: "administrator" },
+    { id: "demo-viewer", label: "Yasmine (Viewer)", role: "operations_viewer", email: "viewer@demo.portops.local" },
+    { id: "demo-operator", label: "Omar (Operator)", role: "operations_operator", email: "operator@demo.portops.local" },
+    { id: "demo-planner", label: "Salma (Planner)", role: "planner", email: "planner@demo.portops.local" },
+    { id: "demo-supervisor", label: "Karim (Supervisor)", role: "supervisor", email: "supervisor@demo.portops.local" },
+    { id: "demo-admin", label: "Admin (Demo)", role: "administrator", email: "admin@demo.portops.local" },
   ];
+  const explicitPassword = process.env.SEED_PASSWORD;
+  if (process.env.NODE_ENV === "production" && !explicitPassword) {
+    throw new Error("SEED_PASSWORD must be set to seed demo accounts in production.");
+  }
+  const demoPassword = explicitPassword ?? randomBytes(12).toString("base64url");
+  const policy = passwordPolicyError(demoPassword);
+  if (policy) throw new Error(`SEED_PASSWORD rejected: ${policy}`);
+  const passwordHash = hashPassword(demoPassword);
   const upsertUser = db.prepare(
-    "INSERT OR IGNORE INTO demo_users (id, label, role) VALUES (?, ?, ?)"
+    "INSERT OR IGNORE INTO users (id, label, role, email, password_hash, password_changed_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ','now'))"
   );
-  for (const u of users) upsertUser.run(u.id, u.label, u.role);
+  let newUsers = 0;
+  for (const u of users) newUsers += Number(upsertUser.run(u.id, u.label, u.role, u.email, passwordHash).changes);
 
   // Audit entries collected here, sorted chronologically at the end.
   // All ids are seed-stable so INSERT OR IGNORE keeps re-runs idempotent.
@@ -395,7 +408,10 @@ function main() {
     if (r.changes > 0) nAudit++;
   });
 
-  console.log(`seeded ${users.length} demo users`);
+  console.log(`seeded ${newUsers} new demo accounts (${users.map((u) => u.email).join(", ")})`);
+  if (newUsers > 0 && !explicitPassword) {
+    console.log(`demo account password (shown once): ${demoPassword}`);
+  }
   console.log(`seeded ${nAppt} appointments, ${nGate} gate events, ${nReview} review items, ${nPlan} berth plans, ${nSim} simulation runs, ${nAudit} audit events`);
   console.log("done. All records labeled synthetic.");
 }

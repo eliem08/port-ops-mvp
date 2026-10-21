@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeAll } from "vitest";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { SignJWT } from "jose";
+import { signTestSession } from "@/test-utils/sessions";
 
 const cookieState = vi.hoisted(() => ({
   token: undefined as string | undefined,
@@ -18,13 +18,8 @@ vi.mock("next/headers", () => ({
   }),
 }));
 
-const SECRET = "dev-only-change-me-in-production";
 async function tokenFor(role: string): Promise<string> {
-  return await new SignJWT({ userId: "u-test", label: "Test User", role })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime("12h")
-    .sign(new TextEncoder().encode(SECRET));
+  return await signTestSession(getDb(), role, "u-test");
 }
 
 const dbFile = join(
@@ -38,10 +33,10 @@ const { POST, GET } = await import("./route");
 const detailRoute = await import("./[id]/route");
 const { NextRequest } = await import("next/server");
 const { getDb } = await import("@/lib/db/client");
-const { MIGRATION_001 } = await import("@/lib/db/migrations");
+const { MIGRATIONS } = await import("@/lib/db/migrations");
 
 beforeAll(() => {
-  getDb().exec(MIGRATION_001);
+  for (const m of MIGRATIONS) getDb().exec(m.sql);
 });
 
 function postJson(body: unknown): InstanceType<typeof NextRequest> {
