@@ -142,7 +142,35 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 `;
 
+// Migration 003 — governance and data intake.
+// settings: administrator-controlled operating policy (e.g. human review).
+// import_batches: one row per CSV import, with its validation report.
+export const MIGRATION_003 = `
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value_json TEXT NOT NULL,
+  updated_by TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+
+CREATE TABLE IF NOT EXISTS import_batches (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,                       -- appointments
+  filename TEXT,
+  row_count INTEGER NOT NULL,
+  created_count INTEGER NOT NULL,
+  skipped_count INTEGER NOT NULL,           -- duplicates (same external_ref)
+  error_count INTEGER NOT NULL,
+  report_json TEXT NOT NULL,                -- per-row errors (capped)
+  created_by TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_events(action);
+`;
+
 export const MIGRATIONS = [
   { version: 1, sql: MIGRATION_001 },
   { version: 2, sql: MIGRATION_002 },
+  { version: 3, sql: MIGRATION_003 },
 ];

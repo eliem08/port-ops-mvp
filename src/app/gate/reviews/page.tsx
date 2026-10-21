@@ -4,7 +4,8 @@
 import Link from "next/link";
 import { getDb } from "@/lib/db/client";
 import { getSession } from "@/lib/auth";
-import { Card, EmptyState, OutcomeBadge, SyntheticTag, formatDateTime } from "@/components/ui";
+import { Card, EmptyState, OutcomeBadge, formatDateTime } from "@/components/ui";
+import { SyntheticTag } from "@/components/synthetic-tag";
 import { ReviewDecisionButtons } from "./review-buttons";
 import { VerificationOutcome } from "@/contracts";
 

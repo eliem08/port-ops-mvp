@@ -1,4 +1,5 @@
-import { Card, SyntheticTag } from "@/components/ui";
+import { Card } from "@/components/ui";
+import { SyntheticTag } from "@/components/synthetic-tag";
 import { NewAppointmentForm } from "./new-form";
 
 export default function NewAppointmentPage() {
@@ -8,7 +9,7 @@ export default function NewAppointmentPage() {
         <h1 className="text-xl font-bold text-ink">New appointment</h1>
         <SyntheticTag />
       </div>
-      <Card title="Synthetic appointment record">
+      <Card title="Appointment">
         <NewAppointmentForm />
       </Card>
     </div>

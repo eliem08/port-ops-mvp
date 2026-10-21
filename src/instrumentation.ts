@@ -26,6 +26,16 @@ export async function register(): Promise<void> {
         dedicatedDataKey: Boolean(env.DATA_ENCRYPTION_KEY),
       },
       metrics: Boolean(env.METRICS_TOKEN),
+      auditWebhook: Boolean(env.AUDIT_WEBHOOK_URL),
     })
   );
+
+  // Background audit shipping (Node runtime only — it needs SQLite).
+  if (env.NEXT_RUNTIME === "nodejs" && env.AUDIT_WEBHOOK_URL) {
+    const [{ startAuditForwarder }, { getDb }] = await Promise.all([
+      import("./lib/audit-forwarder"),
+      import("./lib/db/client"),
+    ]);
+    startAuditForwarder(getDb);
+  }
 }

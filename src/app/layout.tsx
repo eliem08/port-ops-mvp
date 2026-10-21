@@ -52,6 +52,7 @@ export default async function RootLayout({
     if (!session) redirect(pathname === "/" ? "/login" : `/login?next=${encodeURIComponent(pathname)}`);
     if (session.restricted && !startsWithAny(pathname, SETUP_PATHS)) redirect("/account");
     if (startsWithAny(pathname, ["/admin"]) && !hasRole(session.role, "administrator")) redirect("/");
+    if (startsWithAny(pathname, ["/data"]) && !hasRole(session.role, "supervisor")) redirect("/");
   }
 
   const synthetic = demoDataPresent(getDb());
@@ -89,6 +90,14 @@ export default async function RootLayout({
                     {item.label}
                   </Link>
                 ))}
+              {session && !session.restricted && hasRole(session.role, "supervisor") && (
+                <Link
+                  href="/data/import"
+                  className="rounded px-3 py-1.5 text-sm font-medium text-slate2 hover:bg-paper hover:text-ink"
+                >
+                  Import
+                </Link>
+              )}
               {session && !session.restricted && hasRole(session.role, "administrator") && (
                 <>
                   <span className="mx-1 h-5 w-px bg-line" aria-hidden="true" />

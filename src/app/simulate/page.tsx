@@ -11,13 +11,8 @@ import {
   appointmentVolumeSummary,
   proposeSimulationBridge,
 } from "@/lib/demo-workflow";
-import {
-  Card,
-  EmptyState,
-  SyntheticTag,
-  UncalibratedBanner,
-  formatDateTime,
-} from "@/components/ui";
+import { Card, EmptyState, UncalibratedBanner, formatDateTime } from "@/components/ui";
+import { SyntheticTag } from "@/components/synthetic-tag";
 import { NewSimulationForm, ComparePicker } from "./sim-form";
 import { AppointmentBridgeForm } from "./bridge-form";
 

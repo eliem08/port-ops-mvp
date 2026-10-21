@@ -9,12 +9,8 @@ import {
   type KpiDelta,
 } from "@/lib/simulation";
 import { EntityId } from "@/contracts";
-import {
-  Card,
-  SyntheticTag,
-  UncalibratedBanner,
-  formatDateTime,
-} from "@/components/ui";
+import { Card, UncalibratedBanner, formatDateTime } from "@/components/ui";
+import { SyntheticTag } from "@/components/synthetic-tag";
 
 function formatValue(v: number | string): string {
   if (typeof v !== "number") return v;

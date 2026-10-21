@@ -8,12 +8,8 @@ import {
   SOLVER_LABELS,
   type BerthPlanDTO,
 } from "@/lib/planning";
-import {
-  Card,
-  EmptyState,
-  SyntheticTag,
-  formatDateTime,
-} from "@/components/ui";
+import { Card, EmptyState, formatDateTime } from "@/components/ui";
+import { SyntheticTag } from "@/components/synthetic-tag";
 import { OptimalityBadge } from "./optimality-banner";
 import { PlanForm } from "./plan-form";
 

@@ -5,7 +5,8 @@ import Link from "next/link";
 import { getDb } from "@/lib/db/client";
 import { listAppointments, type AppointmentDTO } from "@/lib/appointments";
 import { AppointmentStatus, type AppointmentStatus as StatusT } from "@/contracts";
-import { Card, EmptyState, StatusBadge, SyntheticTag, formatDateTime } from "@/components/ui";
+import { Card, EmptyState, StatusBadge, formatDateTime } from "@/components/ui";
+import { SyntheticTag } from "@/components/synthetic-tag";
 import { StatusFilter } from "./status-filter";
 
 const STATUS_ORDER: StatusT[] = [
@@ -43,11 +44,19 @@ export default async function AppointmentsPage({
         <div>
           <h1 className="text-xl font-bold text-ink">Appointments</h1>
           <p className="mt-1 text-sm text-muted">
-            Truck appointment slots. All records are synthetic.
+            Truck appointment slots.
           </p>
         </div>
         <div className="flex items-center gap-3">
           <SyntheticTag />
+          {/* File download from an API route, not page navigation — <Link> would try client-side routing. */}
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+          <a
+            href="/api/appointments/export"
+            className="rounded border border-line bg-white px-3 py-2 text-sm text-ink hover:bg-paper"
+          >
+            Export CSV
+          </a>
           <Link
             href="/appointments/new"
             className="rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90"
@@ -78,7 +87,7 @@ export default async function AppointmentsPage({
             title="No appointments found"
             hint={
               statusFilter
-                ? `No synthetic appointments with status '${statusFilter}'.`
+                ? `No appointments with status '${statusFilter}'.`
                 : "Create one with the New appointment button."
             }
           />

@@ -3,7 +3,8 @@
 
 import Link from "next/link";
 import { getDashboardStats, auditActionLabel } from "@/lib/dashboard";
-import { Card, EmptyState, StatusBadge, OutcomeBadge, SyntheticTag, formatDateTime } from "@/components/ui";
+import { Card, EmptyState, StatusBadge, OutcomeBadge, formatDateTime } from "@/components/ui";
+import { SyntheticTag } from "@/components/synthetic-tag";
 import type { AppointmentStatus, VerificationOutcome } from "@/contracts";
 
 const STATUS_ORDER: AppointmentStatus[] = [
@@ -26,7 +27,7 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-xl font-bold text-ink">Operations dashboard</h1>
           <p className="mt-1 text-sm text-muted">
-            Live view of the demo database. All figures are synthetic.
+            Live operational view.
           </p>
         </div>
         <SyntheticTag />
@@ -52,7 +53,7 @@ export default function DashboardPage() {
           ))}
         </dl>
         <p className="mt-3 text-xs text-muted">
-          Total appointments: {stats.totalAppointments} (synthetic records)
+          Total appointments: {stats.totalAppointments}
         </p>
       </Card>
 

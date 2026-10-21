@@ -56,17 +56,27 @@ export function ok<T>(data: T, status = 200): NextResponse {
  * db.transaction() helper, so BEGIN IMMEDIATE / COMMIT / ROLLBACK it is.
  */
 export function withTransaction<T>(db: DatabaseSync, fn: () => T): T {
-  db.exec("BEGIN IMMEDIATE");
+  // Re-entrant: an inner call (e.g. createAppointment inside a bulk import)
+  // becomes a SAVEPOINT of the outer transaction, so the outer unit stays
+  // all-or-nothing.
+  const depth = txDepth.get(db) ?? 0;
+  const sp = `sp_${depth}`;
+  db.exec(depth === 0 ? "BEGIN IMMEDIATE" : `SAVEPOINT ${sp}`);
+  txDepth.set(db, depth + 1);
   try {
     const result = fn();
-    db.exec("COMMIT");
+    db.exec(depth === 0 ? "COMMIT" : `RELEASE ${sp}`);
     return result;
   } catch (err) {
     try {
-      db.exec("ROLLBACK");
+      db.exec(depth === 0 ? "ROLLBACK" : `ROLLBACK TO ${sp}; RELEASE ${sp}`);
     } catch {
       // already rolled back / never began — swallow, original error wins
     }
     throw err;
+  } finally {
+    txDepth.set(db, depth);
   }
 }
+
+const txDepth = new WeakMap<DatabaseSync, number>();

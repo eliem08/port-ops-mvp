@@ -5,14 +5,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDb } from "@/lib/db/client";
 import { getAppointment } from "@/lib/appointments";
-import {
-  Card,
-  EmptyState,
-  StatusBadge,
-  OutcomeBadge,
-  SyntheticTag,
-  formatDateTime,
-} from "@/components/ui";
+import { Card, EmptyState, StatusBadge, OutcomeBadge, formatDateTime } from "@/components/ui";
+import { SyntheticTag } from "@/components/synthetic-tag";
 import { TransitionButtons } from "./transition-buttons";
 import { VerificationOutcome } from "@/contracts";
 

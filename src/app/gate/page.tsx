@@ -2,7 +2,8 @@
 
 import { getDb } from "@/lib/db/client";
 import { listAppointments } from "@/lib/appointments";
-import { Card, SyntheticTag } from "@/components/ui";
+import { Card } from "@/components/ui";
+import { SyntheticTag } from "@/components/synthetic-tag";
 import { ScanForm } from "./scan-form";
 
 export default function GatePage() {

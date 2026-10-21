@@ -4,12 +4,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDb } from "@/lib/db/client";
 import { getPlanRun, SOLVER_LABELS } from "@/lib/planning";
-import {
-  Card,
-  EmptyState,
-  SyntheticTag,
-  formatDateTime,
-} from "@/components/ui";
+import { Card, EmptyState, formatDateTime } from "@/components/ui";
+import { SyntheticTag } from "@/components/synthetic-tag";
 import { OptimalityBanner } from "../../optimality-banner";
 
 export default async function PlanRunPage({

@@ -92,7 +92,7 @@ export function NewAppointmentForm() {
         label="Driver name"
         name="driverName"
         maxLength={100}
-        hint="Optional. Synthetic demo — do not enter a real person's name."
+        hint="Optional. Personal data: enter only what your data-protection policy allows."
         error={fe.driverName}
       />
       <Field

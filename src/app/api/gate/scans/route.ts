@@ -22,6 +22,8 @@ import {
   DEFAULT_REVIEW_THRESHOLD,
 } from "@/vendored/gatewatch/review";
 
+import { applyGatePolicy, getSettings } from "@/lib/settings";
+
 const normalize = (s: string | null): string | null => {
   const t = (s ?? "").trim().toUpperCase();
   return t === "" ? null : t;
@@ -110,8 +112,11 @@ export async function POST(req: NextRequest): Promise<Response> {
       outcome = "human-review";
       reason = `Appointment is '${appointment.status}' and cannot transition to checked-in.`;
     } else {
-      outcome = "auto-accept";
+      // The engine would accept; administrator policy may still require a human.
+      const policy = applyGatePolicy(getSettings(db), confidence);
+      outcome = policy.outcome;
       reason =
+        policy.policyReason ??
         "Confidence at/above threshold and scan matches the appointment record.";
     }
 

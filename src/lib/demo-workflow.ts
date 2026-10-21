@@ -20,6 +20,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { withTransaction } from "./route-helpers";
 import { canCheckIn, setAppointmentStatus } from "./appointments";
+import { applyGatePolicy, getSettings } from "./settings";
 import {
   AppointmentStatus,
   type AppointmentStatus as AppointmentStatusT,
@@ -123,6 +124,14 @@ export async function recordScanVerification(
   // A corrupt status string fails closed to human review as well.
   let checkedIn = false;
   let note: string | null = null;
+  if (outcome === "auto-accept") {
+    // Administrator policy can require a human even when the engine accepts.
+    const policy = applyGatePolicy(getSettings(db), conf);
+    if (policy.outcome === "human-review") {
+      outcome = "human-review";
+      note = policy.policyReason;
+    }
+  }
   if (outcome === "auto-accept") {
     const statusParsed = AppointmentStatus.safeParse(appt.status);
     if (statusParsed.success && canCheckIn(statusParsed.data)) {

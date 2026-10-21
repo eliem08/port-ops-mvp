@@ -5,13 +5,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDb } from "@/lib/db/client";
 import { getSimulationRun } from "@/lib/simulation";
-import {
-  Card,
-  SyntheticTag,
-  UncalibratedBanner,
-  ProvenanceBadge,
-  formatDateTime,
-} from "@/components/ui";
+import { Card, UncalibratedBanner, ProvenanceBadge, formatDateTime } from "@/components/ui";
+import { SyntheticTag } from "@/components/synthetic-tag";
 
 function formatValue(v: number | string): string {
   if (typeof v !== "number") return v;
